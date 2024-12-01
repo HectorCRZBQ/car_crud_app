@@ -1,0 +1,39 @@
+# Byte-compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+env/
+*.pyc
+__pycache__/
+
+# Flask instance folder
+instance/
+
+# Environment variables file
+.env
+
+# IDE or Editor files
+.vscode/
+.idea/
+
+# Dependency directory (if any)
+node_modules/
+
+# macOS
+.DS_Store
+
+# Linux
+*~
+# Configuraciones de entorno y secretos
+secrets.yaml
+
+# Archivos de logs
+*.log
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,4 @@
+Flask==2.3.2
+pymongo[srv]==3.12
+dnspython>=1.16.0,<2.0.0
+pyyaml==5.3.1
