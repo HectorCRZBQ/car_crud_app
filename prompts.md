@@ -17,18 +17,13 @@
 
  
 ## 5. Release
- - Creación del archivo release: 
-
+ - Creacion del tagging de versiones: 
 
 ## 6. Deploy
- - 
-
-
+ - Despligue con AWS: https://chatgpt.com/share/6754b3d3-4130-8007-9251-99b462e77d2a
 
 ## 7. Operate
- - 
- - Creación del archivo deploy: 
+ - Despliegue con Terraform: https://chatgpt.com/share/6754b39c-e068-8007-b2dc-d738f000c9ab
 
 ## 8. Monitor
- - 
- - Creación del archivo monitor: 
+ - Mo nitorización de los resultados: 

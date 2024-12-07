@@ -254,12 +254,19 @@ Se va a hacer uso de la AWS CLI para definir los credenciales del usuario que he
    Default output format [None]:
    ```
 
+Ejecutamos el comando que nos devuelve los valores que debemos de modificar en el main.tf y en el variables.tf:
 
-Estos valores se incluiran como Secretos:
+   ```
+   ./scripts/setup.sh
+   ```
+![Imagen](/images/image-7.png)
 
- - AWS_ACCESS_KEY_ID: Tu Access Key del usuario IAM creado.
- - AWS_SECRET_ACCESS_KEY: Tu Secret Access Key del usuario IAM creado.
- - AWS_REGION: La región de AWS donde desplegarás los recursos (por ejemplo, eu-west-1).
+Alteramos en el main.tf los siguientes valores:
+ - bucket = "terraform-state-XXXXXXX"
+ - region = "eu-west-1"
+
+Alteramos en el main.tf los siguientes valores:
+ - default = "eu-west-1"    
 
 
 Dentro del código en la parte de **deploy** de GithubActions vamos a realizar los siguientes acciones:
@@ -274,6 +281,18 @@ Dentro del código en la parte de **deploy** de GithubActions vamos a realizar l
 
 Se defiene la funcionalidad de Terraform para configurar y definir la estructura del AWS.
 
+Añadimos a la estructura de proyecto los siguientes elementos:
+ - Creamos el directorio **iac** donde guardamos los distintos códigos que Terraform va a hacer uso:
+    - main.tf -> se define el bucket que se va a usar para almacenar el contenido y sus especificaciones.
+    - variables.tf -> se declaran las variables reutilizables, en este caso la región
+    - output.tf -> se define el contenido a mostrar tras que se realice el despliegue facilitando el acceso a los datos generados.
+
+Todos estos pasos se ejecutan dentro de la carpeta de iac
+
+   ```
+   cd iac
+   ```
+
 Los pasos que se deben ejecutar con Terraform son los siguientes:
  - Inicializacion de Terraform
 
@@ -284,6 +303,9 @@ Los pasos que se deben ejecutar con Terraform son los siguientes:
    terraform init
    ```
 
+   ![Imagen](/images/image-8.png)
+
+
  - Planificación de Terraform
 
    Define el pamn de ejecución con los cambios necesarios a realizar para satisfacer la estructura propuesta.
@@ -293,6 +315,10 @@ Los pasos que se deben ejecutar con Terraform son los siguientes:
    terraform plan
    ```
 
+   ![Imagen](/images/image-9.png)
+   ![Imagen](/images/image-10.png)
+
+
  - Aplicación de Terraform
 
    Se crean, actualizan o eliminan los recursos necesarios de la nube.
@@ -301,21 +327,22 @@ Los pasos que se deben ejecutar con Terraform son los siguientes:
    ```
    terraform apply
    ```
- - Obtención de salidas
+   ![Imagen](/images/image-11.png)
+   ![Imagen](/images/image-12.png)
+   ![Imagen](/images/image-13.png)
 
-   Muestra la información util de los recursos previamente desplegados.
+Dentro de AWS podemos observar como tras todos los pasos se han creado los 
 
-   Para realizar este paso se ejcuta el siguiente comando:
-   ```
-   terraform init
-   ```
+Los valores del usuario creados los incorporamos como Secretos:
 
+ - AWS_ACCESS_KEY_ID: Tu Access Key del usuario IAM creado.
+ - AWS_SECRET_ACCESS_KEY: Tu Secret Access Key del usuario IAM creado.
+ - AWS_REGION: La región de AWS donde desplegarás los recursos (por ejemplo, eu-west-1).
 
-Añadimos a la estructura de proyecto los siguientes elementos:
- - Creamos el directorio **iac** donde guardamos los distintos códigos que Terraform va a hacer uso:
-    - main.tf -> se define el bucket que se va a usar para almacenar el contenido y sus especificaciones.
-    - variables.tf -> se declaran las variables reutilizables, en este caso la región
-    - output.tf -> se define el contenido a mostrar tras que se realice el despliegue facilitando el acceso a los datos generados.
+Tambien tenemos que añadir el valor que tenemos en secrets.yaml como secreto para que siga estando funcional la conexión a la base de datos
+  - MONGODB_URI: mongodb+srv://<db_user>:<db_password>@<db_name>.gtphu.mongodb.net/?retryWrites=true&w=majority&appName=<db_name>
+
+   ![Imagen](/images/image-14.png)
 
 Dentro del código en la parte de **infraestructure** de GithubActions vamos a realizar los siguientes acciones:
 
@@ -328,3 +355,120 @@ Dentro del código en la parte de **infraestructure** de GithubActions vamos a r
 ## 8. Monitor
 
 Dentro del código en la parte de **monitor** de GithubActions vamos a realizar los siguientes acciones:
+
+
+## Funcionamiento del pipeline:
+
+El pipeline se activará automáticamente con cada push a la rama main.
+
+Ejecutamos el siguiente comando para añadir todas la modificaciones realizadas al commit:
+
+```
+   git add .
+```
+Redactamos un commit de que se han realizado cambios en el contenido del proyecto
+
+```
+   git commit -m "Update website content"
+```
+Y por ultimo lo pusheamos a la rama *main*
+
+```
+   git push origin main
+```
+
+## Limpieza de la ejecucción
+
+Para evitar costos no deseados es importante eliminar los recursos que no sean necesarios.
+
+Para ello se ejecutan los siguientes comandos
+
+   ```
+   cd iac
+   terraform destroy
+   ```
+
+Y sería necesario eliminar de manera manual los siguientes elementos:
+ - El bucket de estado de Terraform
+ - La tabla DynamoDB de bloqueo
+
+## Estructura final del Proyecto
+
+   ```
+   ├── app.py
+   ├── .git
+   │   ├── branches
+   │   ├── COMMIT_EDITMSG
+   │   ├── config
+   │   ├── description
+   │   ├── HEAD
+   │   ├── hooks
+   │   ├── index
+   │   ├── info
+   │   ├── logs
+   │   ├── objects
+   │   ├── packed-refs
+   │   └── refs
+   ├── .github
+   │   └── worflows
+   ├── .gitignore
+   ├── iac
+   │   ├── main.tf
+   │   ├── outputs.tf
+   │   ├── .terraform
+   │   ├── .terraform.lock.hcl
+   │   └── variables.tf
+   ├── images
+   │   ├── image-10.png
+   │   ├── image-11.png
+   │   ├── image-12.png
+   │   ├── image-13.png
+   │   ├── image-14.png
+   │   ├── image-1.png
+   │   ├── image-2.png
+   │   ├── image-3.png
+   │   ├── image-4.png
+   │   ├── image-5.png
+   │   ├── image-6.png
+   │   ├── image-7.png
+   │   ├── image-8.png
+   │   └── image-9.png
+   ├── init_db.py
+   ├── prompts.md
+   ├── __pycache__
+   │   ├── app.cpython-312.pyc
+   │   └── init_db.cpython-312.pyc
+   ├── .pytest_cache
+   │   ├── CACHEDIR.TAG
+   │   ├── .gitignore
+   │   ├── README.md
+   │   └── v
+   ├── README.md
+   ├── requirements.txt
+   ├── scripts
+   │   └── setup.sh
+   ├── secrets.yaml
+   ├── static
+   │   └── styles.css
+   ├── templates
+   │   ├── add_car.html
+   │   ├── base.html
+   │   ├── edit_car.html
+   │   └── index.html
+   ├── tests
+   │   ├── __init__.py
+   │   ├── __pycache__
+   │   ├── test_functionality.py
+   │   ├── test_integration.py
+   │   ├── test_performance.py
+   │   ├── test_quality.py
+   │   ├── test_security.sh
+   │   └── test_unitary.py
+   ├── .tool-versions
+   └── venv
+      ├── bin
+      ├── include
+      ├── lib
+      ├── lib64 -> lib
+      └── pyvenv.cfg
+   ```
