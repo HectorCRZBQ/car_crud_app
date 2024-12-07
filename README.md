@@ -378,6 +378,17 @@ Y por ultimo lo pusheamos a la rama *main*
 ```
    git push origin main
 ```
+![Imagen](/images/image-15.png)
+
+
+Tenemos desplegado el Bucket S3 en AWS:
+
+![Imagen](/images/image-16.png)
+
+Tenemos la tabla de DynamoDB en AWS:
+
+![Imagen](/images/image-17.png)
+
 
 ## Limpieza de la ejecucción
 
