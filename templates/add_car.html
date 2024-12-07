@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Agregar Automóvil</h1>
+<form method="POST">
+    <div class="mb-3">
+        <label for="brand" class="form-label">Marca</label>
+        <input type="text" class="form-control" id="brand" name="brand" required>
+    </div>
+    <div class="mb-3">
+        <label for="model" class="form-label">Modelo</label>
+        <input type="text" class="form-control" id="model" name="model" required>
+    </div>
+    <div class="mb-3">
+        <label for="year" class="form-label">Año</label>
+        <input type="number" class="form-control" id="year" name="year" required>
+    </div>
+    <div class="mb-3">
+        <label for="price" class="form-label">Precio</label>
+        <input type="number" class="form-control" id="price" name="price" required>
+    </div>
+    <div class="mb-3">
+        <label for="fuel_type" class="form-label">Tipo de Combustible</label>
+        <input type="text" class="form-control" id="fuel_type" name="fuel_type" required>
+    </div>
+    <div class="mb-3">
+        <label for="mileage" class="form-label">Kilometraje</label>
+        <input type="number" class="form-control" id="mileage" name="mileage" required>
+    </div>
+    <button type="submit" class="btn btn-primary">Agregar</button>
+</form>
+{% endblock %}
