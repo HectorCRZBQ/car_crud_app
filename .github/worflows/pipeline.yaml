@@ -14,7 +14,6 @@ jobs:
   # Phase 3: Build
   build:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v3
 
@@ -111,26 +110,9 @@ jobs:
         run: |
           ./tests/test_security.sh
 
-  # Phase 5: Release
-  release:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Create Git Tag for Release
-        run: |
-          TAG="release-$(date +'%Y%m%d-%H%M%S')"
-          git tag $TAG
-          git push origin $TAG
-
-  # Phase 6: Infrastructure Setup (Terraform)
+  # Phase 5: Infrastructure Setup (Terraform)
   infrastructure:
-    needs: release
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       website_bucket: ${{ steps.terraform-outputs.outputs.website_bucket }}
@@ -169,10 +151,25 @@ jobs:
         run: |
           terraform output -raw website_bucket_name > website_bucket.txt
           terraform output -raw artifacts_bucket_name > artifacts_bucket.txt
+          
+          # Verificación de variables
+          echo "Website bucket name: $(cat website_bucket.txt)"
+          echo "Artifacts bucket name: $(cat artifacts_bucket.txt)"
+          
+          # Leer los archivos y establecer los outputs
           echo "website_bucket=$(cat website_bucket.txt)" >> "$GITHUB_OUTPUT"
           echo "artifacts_bucket=$(cat artifacts_bucket.txt)" >> "$GITHUB_OUTPUT"
+          
+          # Eliminar los archivos temporales
+          rm website_bucket.txt artifacts_bucket.txt
+          
+          # Verificación de outputs
+          echo "Website bucket: ${{ steps.terraform-outputs.outputs.website_bucket }}"
+          echo "Artifacts bucket: ${{ steps.terraform-outputs.outputs.artifacts_bucket }}"
+          
+          cat $GITHUB_OUTPUT
 
-  # Phase 7: Deploy to Cloud
+  # Phase 6: Deploy to Cloud
   deploy:
     needs: infrastructure
     runs-on: ubuntu-latest
@@ -191,39 +188,54 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: car-crud-app-dist
-          path: dist
+          path: ./dist
 
-      - name: Deploy site to S3
+      - name: Deploy Website to S3
         env:
           WEBSITE_BUCKET: ${{ needs.infrastructure.outputs.website_bucket }}
+        shell: bash
         run: |
+          # Verificación de los outputs
+          echo "Website bucket: ${{ steps.terraform-outputs.outputs.website_bucket }}"
+          
+          # Verificación de las variables de entorno
+          echo "Website bucket: $WEBSITE_BUCKET"
+         
+          # Desplegar sitio web
           aws s3 sync dist/ "s3://$WEBSITE_BUCKET/"
 
-      - name: Copy artifact to S3
+      - name: Copy zip to S3
         env:
           ARTIFACTS_BUCKET: ${{ needs.infrastructure.outputs.artifacts_bucket }}
+        shell: bash
         run: |
-          cd dist && zip -r ../car-crud-app.zip .
-          aws s3 cp car-crud-app.zip "s3://${ARTIFACTS_BUCKET}/car-crud-app.zip"
+          # Verificación de los outputs
+          echo "Artifacts bucket: ${{ steps.terraform-outputs.outputs.artifacts_bucket }}"
+          
+          # Verificación de las variables de entorno
+          echo "Artifacts bucket: $ARTIFACTS_BUCKET"
+          
+          # Crear archivo ZIP con el contenido de dist
+          cd dist && zip -r ../website-dist.zip .
+          cd ..
+          ls -la website-dist.zip
+          
+          # Copiar artefacto
+          aws s3 cp website-dist.zip "s3://${ARTIFACTS_BUCKET}/website-dist.zip"
 
-  # Phase 8: Monitor
-  monitor:
+  # Phase 7: Release
+  release:
     needs: deploy
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Grafana
-        run: |
-          curl -LO https://dl.grafana.com/oss/release/grafana_9.5.3_amd64.deb
-          sudo dpkg -i grafana_9.5.3_amd64.deb
-          sudo systemctl start grafana-server
-          sudo systemctl enable grafana-server
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-      - name: Install Prometheus
+      - name: Create Git Tag for Release
         run: |
-          curl -LO https://github.com/prometheus/prometheus/releases/download/v2.43.0/prometheus-2.43.0.linux-amd64.tar.gz
-          tar -xvf prometheus-2.43.0.linux-amd64.tar.gz
-          sudo mv prometheus-2.43.0.linux-amd64/prometheus /usr/local/bin/
-          sudo mv prometheus-2.43.0.linux-amd64/promtool /usr/local/bin/
-          sudo systemctl start prometheus
-          sudo systemctl enable prometheus
+          TAG="release-$(date +'%Y%m%d-%H%M%S')"
+          git tag $TAG
+          git push origin $TAG

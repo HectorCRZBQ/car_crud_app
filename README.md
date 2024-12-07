@@ -188,14 +188,141 @@ Definimos como se va a hacer el proceso de versionado del proyecto, en este caso
 Dentro del código en la parte de **release** de GithubActions vamos a realizar los siguientes acciones:
 - Versionado del contenido con fecha y hora
 
-## 6. Deploy / Infraestructure
+## 6. Deploy
+
+Para el deploy vamos a usar Amazon Web Service, y para almacenar el contenido generado en este código vamos a usar un bucket S3.
+
+El usuario que vamos a utilizar se uso para una práctica similar de despliegue en AWS. Como elemento destacable tiene asignada una politica personaliza :
+
+   ```
+   {
+      "Version": "2012-10-17",
+      "Statement": [
+         {
+            "Effect": "Allow",
+            "Action": [
+               "s3:CreateBucket",
+               "s3:DeleteBucket",
+               "s3:ListBucket",
+               "s3:Get*",
+               "s3:*Object",
+               "s3:PutBucketPolicy",
+               "s3:PutBucketPublicAccessBlock",
+               "s3:PutBucketVersioning",
+               "s3:PutBucketWebsite",
+               "s3:GetBucketCORS",
+               "s3:PutBucketCORS"
+            ],
+            "Resource": [
+               "arn:aws:s3:::github-actions-pipeline-web-*",
+               "arn:aws:s3:::github-actions-pipeline-web-*/*",
+               "arn:aws:s3:::github-actions-pipeline-artifacts-*",
+               "arn:aws:s3:::github-actions-pipeline-artifacts-*/*",
+               "arn:aws:s3:::terraform-state-*",
+               "arn:aws:s3:::terraform-state-*/*"
+            ]
+         },
+         {
+            "Effect": "Allow",
+            "Action": [
+               "dynamodb:CreateTable",
+               "dynamodb:DeleteTable",
+               "dynamodb:PutItem",
+               "dynamodb:GetItem",
+               "dynamodb:DeleteItem",
+               "dynamodb:UpdateItem"
+            ],
+            "Resource": "arn:aws:dynamodb:*:*:table/terraform-lock"
+         }
+      ]
+   }
+   ```
 
 
+Se va a hacer uso de la AWS CLI para definir los credenciales del usuario que hemos creado, y se usa el siguiente comando:
 
-## 7. Operate
+   ```
+   aws configure
+   ```
 
+*Ejemplo de la interfaz de aws configure*
+
+   ```
+   AWS Access Key ID [*******************: ID del usuario (dentro del .csv)
+   AWS Secret Access Key [******************]: Access Key del usuario (dentro del .csv)
+   Default region name [eu-west-1]: 
+   Default output format [None]:
+   ```
+
+
+Estos valores se incluiran como Secretos:
+
+ - AWS_ACCESS_KEY_ID: Tu Access Key del usuario IAM creado.
+ - AWS_SECRET_ACCESS_KEY: Tu Secret Access Key del usuario IAM creado.
+ - AWS_REGION: La región de AWS donde desplegarás los recursos (por ejemplo, eu-west-1).
+
+
+Dentro del código en la parte de **deploy** de GithubActions vamos a realizar los siguientes acciones:
+
+ - Definir y configurar los credenciales de AWS que vamos a usar
+ - Descargar los artefactos construidos
+ - Despliegue en bucket S3
+ - Copia de los artefactos dentro del Bucket S3
+
+
+## 7. Operate / Infraestructure
+
+Se defiene la funcionalidad de Terraform para configurar y definir la estructura del AWS.
+
+Los pasos que se deben ejecutar con Terraform son los siguientes:
+ - Inicializacion de Terraform
+
+   Descarga contenido necesario y se prepara el entorno.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform init
+   ```
+
+ - Planificación de Terraform
+
+   Define el pamn de ejecución con los cambios necesarios a realizar para satisfacer la estructura propuesta.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform plan
+   ```
+
+ - Aplicación de Terraform
+
+   Se crean, actualizan o eliminan los recursos necesarios de la nube.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform apply
+   ```
+ - Obtención de salidas
+
+   Muestra la información util de los recursos previamente desplegados.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform init
+   ```
+
+
+Añadimos a la estructura de proyecto los siguientes elementos:
+ - Creamos el directorio **iac** donde guardamos los distintos códigos que Terraform va a hacer uso:
+    - main.tf -> se define el bucket que se va a usar para almacenar el contenido y sus especificaciones.
+    - variables.tf -> se declaran las variables reutilizables, en este caso la región
+    - output.tf -> se define el contenido a mostrar tras que se realice el despliegue facilitando el acceso a los datos generados.
 
 Dentro del código en la parte de **infraestructure** de GithubActions vamos a realizar los siguientes acciones:
+
+ - Inicializacion
+ - Planificación
+ - Aplicacion
+ - Obtencion de salidas
 
 
 ## 8. Monitor

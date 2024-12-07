@@ -5,10 +5,9 @@ la aplicación y la base de datos MongoDB.
 """
 
 import unittest
-import yaml
+import os
 from pymongo import MongoClient
 from app import app
-import os
 
 class TestIntegration(unittest.TestCase):
     """
@@ -20,14 +19,8 @@ class TestIntegration(unittest.TestCase):
         """
         Configura la conexión a la base de datos de prueba antes de ejecutar las pruebas.
         """
-        # Leer la URI de la base de datos desde el archivo secrets.yaml
-        secrets_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'secrets.yaml')
-        
-        with open(secrets_path, 'r') as file:
-            secrets = yaml.safe_load(file)
-        
-        # Obtener la URI desde el archivo
-        mongo_uri = secrets['mongodb']['uri']
+        # Obtener la URI de MongoDB desde las variables de entorno configuradas en GitHub Secrets
+        mongo_uri = os.getenv("MONGODB_URI")
         
         # Conectar a MongoDB usando la URI remota
         cls.client = MongoClient(mongo_uri)

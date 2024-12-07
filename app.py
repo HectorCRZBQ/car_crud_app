@@ -3,17 +3,16 @@ Aplicación CRUD para gestionar autos utilizando Flask y MongoDB.
 Este archivo contiene la configuración principal de la aplicación.
 """
 
+import os
 from flask import Flask, render_template, request, redirect, url_for
 from pymongo import MongoClient
 from bson import ObjectId
-import yaml
 
-# Cargar credenciales desde secrets.yaml
-with open('secrets.yaml', 'r', encoding='utf-8') as file:
-    secrets = yaml.safe_load(file)
+# Obtener la URI de MongoDB desde las variables de entorno configuradas en GitHub Secrets
+mongo_uri = os.getenv("MONGODB_URI")
 
 # Conectar con MongoDB Atlas usando pymongo con soporte para SRV
-client = MongoClient(secrets['mongodb']['uri'])
+client = MongoClient(mongo_uri)
 db = client.car_database
 cars_collection = db.cars
 
