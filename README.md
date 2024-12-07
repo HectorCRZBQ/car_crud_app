@@ -331,6 +331,7 @@ Los pasos que se deben ejecutar con Terraform son los siguientes:
    ![Imagen](/images/image-12.png)
    ![Imagen](/images/image-13.png)
 
+
 Dentro de AWS podemos observar como tras todos los pasos se han creado los 
 
 Los valores del usuario creados los incorporamos como Secretos:
@@ -343,6 +344,7 @@ Tambien tenemos que añadir el valor que tenemos en secrets.yaml como secreto pa
   - MONGODB_URI: mongodb+srv://<db_user>:<db_password>@<db_name>.gtphu.mongodb.net/?retryWrites=true&w=majority&appName=<db_name>
 
    ![Imagen](/images/image-14.png)
+
 
 Dentro del código en la parte de **infraestructure** de GithubActions vamos a realizar los siguientes acciones:
 
