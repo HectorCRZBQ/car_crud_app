@@ -69,11 +69,24 @@ jobs:
 
       - name: Install MongoDB
         run: |
+          # Instalar herramientas necesarias
           sudo apt-get update
-          sudo apt-get install -y mongodb
-          sudo systemctl enable mongod
-          sudo systemctl start mongod
+          sudo apt-get install -y gnupg curl
 
+          # Agregar la clave pública de MongoDB
+          curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | \
+            sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+
+          # Agregar el repositorio de MongoDB
+          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | \
+            sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+
+          # Actualizar los repositorios
+          sudo apt-get update
+
+          # Instalar MongoDB
+          sudo apt-get install -y mongodb-org
+      
       - name: Verify MongoDB is running
         run: |
           sudo systemctl status mongod
