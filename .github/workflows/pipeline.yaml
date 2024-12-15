@@ -88,8 +88,10 @@ jobs:
           sudo apt-get install -y mongodb-org
 
       
-      - name: Verify MongoDB is running
+      - name: Start MongoDB service
         run: |
+          sudo systemctl enable mongod
+          sudo systemctl start mongod
           sudo systemctl status mongod
 
       - name: Run Integration Tests
