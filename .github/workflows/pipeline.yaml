@@ -67,18 +67,23 @@ jobs:
         run: |
           pytest -s tests/test_unitary.py
 
-      - name: Run Integration Tests
+      - name: Install MongoDB
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mongodb
+          sudo systemctl enable mongod
+          sudo systemctl start mongod
+
+      - name: Verify MongoDB is running
         run: |
           sudo systemctl status mongod
-          sudo systemctl start mongod
-          sudo systemctl status mongod
+
+      - name: Run Integration Tests
+        run: |
           pytest -v tests/test_integration.py
 
       - name: Run Functionality Tests
-        run: |
-          sudo systemctl status mongod
-          sudo systemctl start mongod
-          sudo systemctl status mongod
+        run: 
           python -m unittest tests.test_functionality
 
       - name: Start the application for performance tests
