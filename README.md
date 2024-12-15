@@ -105,13 +105,15 @@ Añadimos a la estructura de proyecto los siguientes elementos:
    
 
 2. En test_integration.py evaluamos los siguientes elementos:
- - Añadir objetos en base de datos real
- - Editar objetos en base de datos real
- - Eliminar objetos en base de datos real
+ - Añadir objetos en base de datos local de Mongo
+ - Editar objetos en base de datos local de Mongo
+ - Eliminar objetos en base de datos local de Mongo
+ - Editar un objeto inexistente en la base de datos local de Mongo
+ - Eliminar un objeto inexistente en la base de datos local de Mongo
 
     *Para ejecutarlo de manera individual se ejecuta el siguiente comando:*
       ```
-      python -m unittest discover -s tests -p "test_integration.py"
+      pytest -v tests/test_integration.py"
       ```
 ![Imagen](/images/image-2.png)
 

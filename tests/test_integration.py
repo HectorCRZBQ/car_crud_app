@@ -1,92 +1,98 @@
-"""
-Pruebas de integración para la aplicación CRUD de autos.
-Este archivo utiliza unittest para verificar la interacción entre
-la aplicación y la base de datos MongoDB.
-"""
+import pytest
+from app import create_app
+from bson import ObjectId
 
-import unittest
-import os
-from pymongo import MongoClient
-from app import app
+@pytest.fixture
+def app_and_client():
+    """Configura una aplicación de pruebas con cliente."""
+    # Usar una base de datos local de MongoDB
+    app, cars_collection = create_app('mongodb://localhost:27017/')
+    app.config['TESTING'] = True
+    
+    with app.test_client() as client:
+        with app.app_context():
+            yield app, client, cars_collection
 
-class TestIntegration(unittest.TestCase):
+def test_crud_operations(app_and_client):
     """
-    Clase que contiene las pruebas de integración para la aplicación CRUD de autos.
+    Prueba completa de las operaciones CRUD:
+    1. Insertar un nuevo auto
+    2. Verificar la inserción
+    3. Editar el auto
+    4. Verificar la edición
+    5. Eliminar el auto
+    6. Verificar la eliminación
     """
+    app, client, cars_collection = app_and_client
 
-    @classmethod
-    def setUpClass(cls):
-        """
-        Configura la conexión a la base de datos de prueba antes de ejecutar las pruebas.
-        """
-        # Obtener la URI de MongoDB desde las variables de entorno configuradas en GitHub Secrets
-        mongo_uri = os.getenv("MONGODB_URI")
-        
-        # Conectar a MongoDB usando la URI remota
-        cls.client = MongoClient(mongo_uri)
-        cls.db = cls.client.get_database('car_database')  # Especifica el nombre de la base de datos
-        cls.cars_collection = cls.db.cars
-        cls.app = app.test_client()
+    # Datos de prueba
+    test_car_data = {
+        'brand': 'Toyota',
+        'model': 'Corolla',
+        'year': '2022',
+        'price': '25000',
+        'fuel_type': 'Gasolina',
+        'mileage': '15000'
+    }
 
-    def setUp(self):
-        """
-        Limpia la base de datos antes de cada prueba.
-        """
-        self.cars_collection.delete_many({})
+    # 1. Prueba de inserción
+    response = client.post('/add', data=test_car_data, follow_redirects=True)
+    assert response.status_code == 200
 
-    def test_add_car(self):
-        """
-        Verifica que agregar un auto lo inserta correctamente en la base de datos.
-        """
-        with self.app as client:
-            response = client.post('/add', data={
-                'brand': 'Honda', 'model': 'Civic', 'year': '2019',
-                'price': '20000', 'fuel_type': 'Gasoline', 'mileage': '30000'
-            })
-            self.assertEqual(response.status_code, 302)  # Redirección a la página principal
-            car = self.cars_collection.find_one({'brand': 'Honda'})
-            self.assertIsNotNone(car)
-            self.assertEqual(car['model'], 'Civic')
+    # 2. Verificar que el auto fue insertado
+    inserted_car = cars_collection.find_one({'brand': 'Toyota', 'model': 'Corolla'})
+    assert inserted_car is not None
+    car_id = str(inserted_car['_id'])
 
-    def test_edit_car(self):
-        """
-        Verifica que modificar un auto lo actualiza correctamente en la base de datos.
-        """
-        car_id = self.cars_collection.insert_one({
-            'brand': 'Nissan', 'model': 'Altima', 'year': '2018',
-            'price': '18000', 'fuel_type': 'Gasoline', 'mileage': '40000'
-        }).inserted_id
-        with self.app as client:
-            response = client.post(f'/edit/{car_id}', data={
-                'brand': 'Nissan', 'model': 'Altima', 'year': '2020',
-                'price': '19000', 'fuel_type': 'Gasoline', 'mileage': '35000'
-            })
-            self.assertEqual(response.status_code, 302)
-            car = self.cars_collection.find_one({'_id': car_id})
-            self.assertEqual(car['year'], '2020')
-            self.assertEqual(car['price'], '19000')
+    # 3. Prueba de edición
+    edit_car_data = {
+        'brand': 'Toyota',
+        'model': 'Corolla',
+        'year': '2023',  # Cambio de año
+        'price': '26000',  # Cambio de precio
+        'fuel_type': 'Gasolina',
+        'mileage': '16000'
+    }
+    response = client.post(f'/edit/{car_id}', data=edit_car_data, follow_redirects=True)
+    assert response.status_code == 200
 
-    def test_delete_car(self):
-        """
-        Verifica que eliminar un auto lo elimina correctamente de la base de datos.
-        """
-        car_id = self.cars_collection.insert_one({
-            'brand': 'Ford', 'model': 'Fiesta', 'year': '2015',
-            'price': '10000', 'fuel_type': 'Gasoline', 'mileage': '70000'
-        }).inserted_id
-        with self.app as client:
-            response = client.get(f'/delete/{car_id}')
-            self.assertEqual(response.status_code, 302)
-            car = self.cars_collection.find_one({'_id': car_id})
-            self.assertIsNone(car)
+    # 4. Verificar que el auto fue editado
+    edited_car = cars_collection.find_one({'_id': ObjectId(car_id)})
+    assert edited_car['year'] == '2023'
+    assert edited_car['price'] == '26000'
 
-    @classmethod
-    def tearDownClass(cls):
-        """
-        Limpia la base de datos de prueba y cierra la conexión al final de las pruebas.
-        """
-        cls.client.drop_database(cls.db.name)  # Elimina la base de datos de pruebas
-        cls.client.close()
+    # 5. Prueba de eliminación
+    response = client.get(f'/delete/{car_id}', follow_redirects=True)
+    assert response.status_code == 200
 
-if __name__ == '__main__':
-    unittest.main()
+    # 6. Verificar que el auto fue eliminado
+    deleted_car = cars_collection.find_one({'_id': ObjectId(car_id)})
+    assert deleted_car is None
+
+def test_invalid_car_operations(app_and_client):
+    """
+    Pruebas de casos de error:
+    1. Intentar editar un auto no existente
+    2. Intentar eliminar un auto no existente
+    """
+    app, client, cars_collection = app_and_client
+
+    # ID de prueba que no existe
+    fake_id = '60afe2f86a4a5c8a8ce5c000'
+
+    # Intentar editar un auto no existente
+    edit_car_data = {
+        'brand': 'Toyota',
+        'model': 'Corolla',
+        'year': '2023',
+        'price': '26000',
+        'fuel_type': 'Gasolina',
+        'mileage': '16000'
+    }
+    
+    response = client.post(f'/edit/{fake_id}', data=edit_car_data, follow_redirects=True)
+    assert response.status_code == 200  # Redirige al index con mensaje de error
+
+    # Intentar eliminar un auto no existente
+    response = client.get(f'/delete/{fake_id}', follow_redirects=True)
+    assert response.status_code == 200  # Redirige al index con mensaje de error

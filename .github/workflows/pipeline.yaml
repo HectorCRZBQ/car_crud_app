@@ -69,10 +69,16 @@ jobs:
 
       - name: Run Integration Tests
         run: |
-          python -m unittest discover -s tests -p "test_integration.py"
+          sudo systemctl status mongod
+          sudo systemctl start mongod
+          sudo systemctl status mongod
+          pytest -v tests/test_integration.py
 
       - name: Run Functionality Tests
         run: |
+          sudo systemctl status mongod
+          sudo systemctl start mongod
+          sudo systemctl status mongod
           python -m unittest tests.test_functionality
 
       - name: Start the application for performance tests
@@ -238,4 +244,4 @@ jobs:
         run: |
           TAG="release-$(date +'%Y%m%d-%H%M%S')"
           git tag $TAG
-          git push origin $TAG
+          git push origin $TAGE
