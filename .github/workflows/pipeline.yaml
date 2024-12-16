@@ -130,7 +130,7 @@ jobs:
     
       - name: Run Quality Tests
         run: |
-          pylint app.py
+          python tests/test_quality.py
 
       - name: Install Trivy for Security Tests
         run: |
