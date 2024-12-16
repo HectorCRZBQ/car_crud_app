@@ -118,9 +118,9 @@ jobs:
         run: |
           locust -f tests/test_performance.py \
             --headless \
-            --users 100 \          # Número de usuarios simulados
-            --spawn-rate 10 \      # Usuarios que se inician por segundo
-            --run-time 15s \       # Duración de la prueba
+            --users 100 \
+            --spawn-rate 10 \
+            --run-time 15s \
             --host=http://localhost:5000
 
       - name: Stop the application
