@@ -141,7 +141,7 @@ jobs:
       - name: Run Security Tests
         run: |
           ./tests/test_security.sh
-      continue-on-error: true
+        continue-on-error: true
 
 # Phase 5: Infrastructure Setup (Terraform)
 # infrastructure:
