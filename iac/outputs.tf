@@ -1,14 +1,17 @@
-output "website_bucket_name" {
-  description = "Name of the S3 bucket hosting the website"
-  value       = aws_s3_bucket.website.id
+# Salida con la IP pública de la instancia EC2
+output "instance_public_ip" {
+  description = "Dirección IP pública de la instancia EC2"
+  value       = aws_instance.web.public_ip
 }
 
-output "website_url" {
-  description = "URL of the website"
-  value       = "http://${aws_s3_bucket.website.bucket}.s3-website-${var.aws_region}.amazonaws.com"
+# Salida con el ID de la VPC creada
+output "vpc_id" {
+  description = "ID de la VPC principal creada"
+  value       = aws_vpc.main.id
 }
 
-output "artifacts_bucket_name" {
-  description = "Name of the S3 bucket storing artifacts"
-  value       = aws_s3_bucket.artifacts.id
+# Salida con el ID de la subred creada
+output "subnet_id" {
+  description = "ID de la subred pública creada"
+  value       = aws_subnet.main.id
 }

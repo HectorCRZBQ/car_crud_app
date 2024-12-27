@@ -1,5 +1,4 @@
-variable "aws_region" {
-  description = "AWS Region where resources will be created"
-  type        = string
-  default     = "eu-west-1"  # ACTUALIZAR según tu región
+variable "region" {
+  description = "La región de AWS donde se desplegarán los recursos"
+  default     = "us-east-1"
 }

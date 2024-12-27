@@ -25,5 +25,7 @@
 ## 7. Operate
  - Despliegue con Terraform: https://chatgpt.com/share/6754b39c-e068-8007-b2dc-d738f000c9ab
 
+ - Correción del despliegue: https://chatgpt.com/share/676162c2-364c-8007-b203-af21a9ffa3ce
+ 
 ## 8. Monitor
  - Mo nitorización de los resultados: 

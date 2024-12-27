@@ -69,25 +69,14 @@ jobs:
 
       - name: Install MongoDB
         run: |
-          # Instalar herramientas necesarias
           sudo apt-get update
           sudo apt-get install -y gnupg curl
-
-          # Agregar la clave pública de MongoDB
-          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | \
-            sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
-
-          # Agregar el repositorio de MongoDB 6.0
+          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
           echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | \
             sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
-
-          # Actualizar los repositorios
           sudo apt-get update
-
-          # Instalar MongoDB
           sudo apt-get install -y mongodb-org
 
-      
       - name: Start MongoDB service
         run: |
           sudo systemctl enable mongod
@@ -105,7 +94,7 @@ jobs:
       - name: Start the application for performance tests
         run: |
           python app.py &
-          echo $! > app_pid.txt  # Guarda el PID del proceso para detenerlo más tarde
+          echo $! > app_pid.txt
 
       - name: Wait for the application to be ready
         run: |
@@ -143,132 +132,106 @@ jobs:
           ./tests/test_security.sh
         continue-on-error: true
 
-# Phase 5: Infrastructure Setup (Terraform)
-# infrastructure:
-#   needs: test
-#   runs-on: ubuntu-latest
-#   outputs:
-#     website_bucket: ${{ steps.terraform-outputs.outputs.website_bucket }}
-#     artifacts_bucket: ${{ steps.terraform-outputs.outputs.artifacts_bucket }}
-#   steps:
-#     - uses: actions/checkout@v3
+  # Phase 5: Infrastructure Setup (Terraform)
+  infrastructure:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      instance_public_ip: ${{ steps.get-ip.outputs.instance_public_ip }}
 
-#     - name: Configure AWS Credentials
-#       uses: aws-actions/configure-aws-credentials@v3
-#       with:
-#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         aws-region: ${{ secrets.AWS_REGION }}
+    steps:
+      - uses: actions/checkout@v3
 
-#     - name: Setup Terraform
-#       uses: hashicorp/setup-terraform@v3
-#       with:
-#         terraform_version: ${{ env.TF_VERSION }}
-#         terraform_wrapper: false
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-#     - name: Terraform Init
-#       working-directory: ./iac
-#       run: terraform init
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
-#     - name: Terraform Plan
-#       working-directory: ./iac
-#       run: terraform plan -out=tfplan
+      - name: Terraform Init
+        working-directory: ./iac
+        run: terraform init
 
-#     - name: Terraform Apply
-#       working-directory: ./iac
-#       run: terraform apply -auto-approve tfplan
+      - name: Terraform Plan
+        working-directory: ./iac
+        run: terraform plan -out=tfplan
 
-#     - name: Get Terraform Outputs
-#       working-directory: ./iac
-#       id: terraform-outputs
-#       run: |
-#         terraform output -raw website_bucket_name > website_bucket.txt
-#         terraform output -raw artifacts_bucket_name > artifacts_bucket.txt
-          
-#         # Verificación de variables
-#         echo "Website bucket name: $(cat website_bucket.txt)"
-#         echo "Artifacts bucket name: $(cat artifacts_bucket.txt)"
-          
-#         # Leer los archivos y establecer los outputs
-#         echo "website_bucket=$(cat website_bucket.txt)" >> "$GITHUB_OUTPUT"
-#         echo "artifacts_bucket=$(cat artifacts_bucket.txt)" >> "$GITHUB_OUTPUT"
-          
-#         # Eliminar los archivos temporales
-#         rm website_bucket.txt artifacts_bucket.txt
-          
-#         # Verificación de outputs
-#         echo "Website bucket: ${{ steps.terraform-outputs.outputs.website_bucket }}"
-#         echo "Artifacts bucket: ${{ steps.terraform-outputs.outputs.artifacts_bucket }}"
-          
-#         cat $GITHUB_OUTPUT
+      - name: Terraform Apply
+        working-directory: ./iac
+        run: terraform apply -auto-approve tfplan
 
-# Phase 6: Deploy to Cloud
-# deploy:
-#   needs: infrastructure
-#   runs-on: ubuntu-latest
+      - name: Get Instance Public IP
+        working-directory: ./iac
+        id: get-ip
+        run: echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
 
-#   steps:
-#     - uses: actions/checkout@v3
+      # Paso para desencriptar el archivo `secrets.yaml.enc` usando KMS
+      - name: Decrypt secrets.yaml using KMS
+        run: |
+          aws kms decrypt \
+            --ciphertext-blob fileb://secrets.yaml.enc \
+            --output text \
+            --query Plaintext \
+            --key-id ${{ secrets.KMS_KEY_ID }} \
+            | base64 --decode > secrets.yaml
 
-#     - name: Configure AWS Credentials
-#       uses: aws-actions/configure-aws-credentials@v3
-#       with:
-#         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#         aws-region: ${{ secrets.AWS_REGION }}
+  # Phase 6: Deploy to Cloud
+  deploy:
+    needs: infrastructure
+    runs-on: ubuntu-latest
 
-#     - name: Download build artifact
-#       uses: actions/download-artifact@v4
-#       with:
-#         name: car-crud-app-dist
-#         path: ./dist
+    steps:
+      - uses: actions/checkout@v3
 
-#     - name: Deploy Website to S3
-#       env:
-#         WEBSITE_BUCKET: ${{ needs.infrastructure.outputs.website_bucket }}
-#       shell: bash
-#       run: |
-#         # Verificación de los outputs
-#         echo "Website bucket: ${{ steps.terraform-outputs.outputs.website_bucket }}"
-          
-#         # Verificación de las variables de entorno
-#         echo "Website bucket: $WEBSITE_BUCKET"
-         
-#         # Desplegar sitio web
-#         aws s3 sync dist/ "s3://$WEBSITE_BUCKET/"
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa  # Establece los permisos de la clave privada
 
-#     - name: Copy zip to S3
-#       env:
-#         ARTIFACTS_BUCKET: ${{ needs.infrastructure.outputs.artifacts_bucket }}
-#       shell: bash
-#       run: |
-#         # Verificación de los outputs
-#         echo "Artifacts bucket: ${{ steps.terraform-outputs.outputs.artifacts_bucket }}"
-          
-#         # Verificación de las variables de entorno
-#         echo "Artifacts bucket: $ARTIFACTS_BUCKET"
-          
-#         # Crear archivo ZIP con el contenido de dist
-#         cd dist && zip -r ../website-dist.zip .
-#         cd ..
-#         ls -la website-dist.zip
-          
-#         # Copiar artefacto
-#         aws s3 cp website-dist.zip "s3://${ARTIFACTS_BUCKET}/website-dist.zip"
+      - name: Deploy Application to EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          echo "Deploying to $INSTANCE_IP"
 
-# Phase 7: Release
-# release:
-#   needs: deploy
-#   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-#   runs-on: ubuntu-latest
+          # Copiar los archivos y directorios necesarios a la instancia EC2
+          scp -i ~/.ssh/id_rsa -r ./static ec2-user@$INSTANCE_IP:/var/www/web-app/static
+          scp -i ~/.ssh/id_rsa -r ./templates ec2-user@$INSTANCE_IP:/var/www/web-app/templates
+          scp -i ~/.ssh/id_rsa ./app.py ec2-user@$INSTANCE_IP:/var/www/web-app/app.py
+          scp -i ~/.ssh/id_rsa secrets.yaml ec2-user@$INSTANCE_IP:/var/www/web-app/secrets.yaml
 
-#   steps:
-#     - uses: actions/checkout@v3
-#       with:
-#         fetch-depth: 0
+          # Reiniciar la aplicación en la instancia EC2
+          ssh -i ~/.ssh/id_rsa ec2-user@$INSTANCE_IP <<EOF
+            sudo systemctl restart web-app
+          EOF
 
-#     - name: Create Git Tag for Release
-#       run: |
-#         TAG="release-$(date +'%Y%m%d-%H%M%S')"
-#         git tag $TAG
-#         git push origin $TAGE
+  # Phase 7: Release
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Create Git Tag for Release
+        run: |
+          TAG="release-$(date +'%Y%m%d-%H%M%S')"
+          git tag $TAG
+          git push origin $TAG

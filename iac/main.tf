@@ -1,77 +1,101 @@
-terraform {
-  required_version = ">= 1.0.0"
-
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-
-  backend "s3" {
-    bucket         = "terraform-state-619071315476" # ACTUALIZAR
-    region         = "eu-west-1"                    # ACTUALIZAR según tu región
-    key            = "terraform.tfstate"
-    dynamodb_table = "terraform-lock"
-    encrypt        = true
-  }
-}
-
 provider "aws" {
-  region = var.aws_region
+  region = var.region
 }
 
-data "aws_caller_identity" "current" {}
-
-# Bucket para el sitio web
-resource "aws_s3_bucket" "website" {
-  bucket = "github-actions-pipeline-web-${data.aws_caller_identity.current.account_id}"
-}
-
-resource "aws_s3_bucket_website_configuration" "website" {
-  bucket = aws_s3_bucket.website.bucket
-
-  index_document {
-    suffix = "index.html"
+# Crear VPC principal
+resource "aws_vpc" "main" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
+  tags = {
+    Name = "Main-VPC"
+    Description = "VPC principal para la infraestructura"
   }
 }
 
-resource "aws_s3_bucket_public_access_block" "website" {
-  bucket = aws_s3_bucket.website.id
-
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+# Crear subred pública dentro de la VPC
+resource "aws_subnet" "main" {
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = "10.0.1.0/24"
+  map_public_ip_on_launch = true
+  availability_zone       = data.aws_availability_zones.available.names[0]
+  tags = {
+    Name = "Main-Subnet"
+    Description = "Subred pública asociada a la VPC principal"
+  }
 }
 
-resource "aws_s3_bucket_policy" "website" {
-  depends_on = [aws_s3_bucket_public_access_block.website]
-
-  bucket = aws_s3_bucket.website.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.website.arn}/*"
-      },
-    ]
-  })
+# Crear una puerta de enlace de Internet para la VPC
+resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags = {
+    Name = "Main-IGW"
+    Description = "Puerta de enlace de Internet para la VPC"
+  }
 }
 
-# Bucket para artefactos
-resource "aws_s3_bucket" "artifacts" {
-  bucket = "github-actions-pipeline-artifacts-${data.aws_caller_identity.current.account_id}"
+# Crear un grupo de seguridad que permita tráfico HTTP
+resource "aws_security_group" "allow_http" {
+  name        = "allow_http"
+  description = "Permitir tráfico HTTP"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]  # Asegúrate de que sea accesible desde GitHub Actions o tu IP local
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "allow_http"
+    Description = "Grupo de seguridad que permite tráfico HTTP desde cualquier lugar"
+  }
 }
 
-resource "aws_s3_bucket_versioning" "artifacts" {
-  bucket = aws_s3_bucket.artifacts.id
-  versioning_configuration {
-    status = "Enabled"
+# Crear una clave SSH para la instancia EC2
+resource "aws_key_pair" "web_key" {
+  key_name   = "web-key"
+  public_key = file("~/.ssh/id_rsa.pub")  # Asegúrate de tener tu clave pública aquí
+}
+
+# Crear una instancia EC2 para alojar una aplicación web
+resource "aws_instance" "web" {
+  ami           = data.aws_ami.ubuntu.id
+  instance_type = "t2.micro"
+
+  subnet_id              = aws_subnet.main.id
+  vpc_security_group_ids = [aws_security_group.allow_http.id]
+
+  tags = {
+    Name = "Web-Instance"
+    Description = "Instancia EC2 para alojar una aplicación web"
+  }
+}
+
+# Recuperar las zonas de disponibilidad para crear recursos en la zona más adecuada
+data "aws_availability_zones" "available" {}
+
+# Seleccionar la AMI más reciente de Ubuntu 20.04 LTS
+data "aws_ami" "ubuntu" {
+  most_recent = true
+  owners      = ["099720109477"] # Ubuntu owner ID
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
 }

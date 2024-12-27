@@ -256,20 +256,31 @@ Se va a hacer uso de la AWS CLI para definir los credenciales del usuario que he
    Default output format [None]:
    ```
 
-Ejecutamos el comando que nos devuelve los valores que debemos de modificar en el main.tf y en el variables.tf:
+Para encriptar el valor de secrets.yaml hacemos uso de KMS
+
+Se encripta el valor de secrets.yaml en terminal con el siguiente comando:
+   ```
+   aws kms decrypt \
+   --ciphertext-blob fileb://secrets.yaml.enc \
+   --output text \
+   --query Plaintext \
+   --key-id <KMS_KEY_ID>\
+   | base64 --decode > secrets.yaml
 
    ```
-   ./scripts/setup.sh
+Nos genera un archivo secrets.yaml.enc
+
+El valor de KMS es un secreto del repositorio de Github, bajo el nombre KMS_KEY_ID.
+
+Necesitamos tener una clave SSH para que se puedan copiar los archivos dentro del EC2, para crearla se ejecuta:
+
    ```
-![Imagen](/images/image-7.png)
+   ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N ""
 
-Alteramos en el main.tf los siguientes valores:
- - bucket = "terraform-state-XXXXXXX"
- - region = "eu-west-1"
+   cat ~/.ssh/id_rsa # Se copia el contenido dentro del secreto SSH_PRIVATE_KEY
+   ```
 
-Alteramos en el main.tf los siguientes valores:
- - default = "eu-west-1"    
-
+El contenido que se obtiene se integra como un secreto con el nombre SSH_PRIVATE_KEY
 
 Dentro del código en la parte de **deploy** de GithubActions vamos a realizar los siguientes acciones:
 
@@ -381,7 +392,6 @@ Y por ultimo lo pusheamos a la rama *main*
    git push origin main
 ```
 ![Imagen](/images/image-15.png)
-
 
 Tenemos desplegado el Bucket S3 en AWS:
 
