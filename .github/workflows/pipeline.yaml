@@ -154,6 +154,19 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
+      
+      - name: Set up SSH key
+        run: |
+          # Crea el directorio ~/.ssh si no existe
+          mkdir -p ~/.ssh
+
+          # Escribe la clave privada desde los secretos
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa  # Establece los permisos de la clave privada
+
+          # Genera la clave pública desde la clave privada
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          chmod 644 ~/.ssh/id_rsa.pub  # Establece los permisos de la clave pública
 
       - name: Terraform Init
         working-directory: ./iac
@@ -199,8 +212,16 @@ jobs:
       
       - name: Set up SSH key
         run: |
+          # Crea el directorio ~/.ssh si no existe
+          mkdir -p ~/.ssh
+
+          # Escribe la clave privada desde los secretos
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa  # Establece los permisos de la clave privada
+
+          # Genera la clave pública desde la clave privada
+          ssh-keygen -y -f ~/.ssh/id_rsa > ~/.ssh/id_rsa.pub
+          chmod 644 ~/.ssh/id_rsa.pub  # Establece los permisos de la clave pública
 
       - name: Deploy Application to EC2
         env:
@@ -219,19 +240,19 @@ jobs:
             sudo systemctl restart web-app
           EOF
 
-  # Phase 7: Release
-  release:
-    needs: test
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+# Phase 7: Release
+# release:
+#   needs: test
+#   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+#   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
+#   steps:
+#     - uses: actions/checkout@v3
+#       with:
+#         fetch-depth: 0
 
-      - name: Create Git Tag for Release
-        run: |
-          TAG="release-$(date +'%Y%m%d-%H%M%S')"
-          git tag $TAG
-          git push origin $TAG
+#     - name: Create Git Tag for Release
+#       run: |
+#         TAG="release-$(date +'%Y%m%d-%H%M%S')"
+#         git tag $TAG
+#         git push origin $TAG
