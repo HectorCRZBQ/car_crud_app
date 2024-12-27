@@ -37,7 +37,7 @@ resource "aws_internet_gateway" "main" {
 # Crear un grupo de seguridad que permita tráfico HTTP
 resource "aws_security_group" "allow_http" {
   name        = "allow_http"
-  description = "Permitir tráfico HTTP"
+  description = "Allow HTTP traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
