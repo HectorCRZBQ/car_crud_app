@@ -185,14 +185,16 @@ jobs:
         id: get-ip
         run: echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
 
-      # Paso para desencriptar el archivo `secrets.yaml.enc` usando KMS
       - name: Decrypt secrets.yaml using KMS
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
           aws kms decrypt \
             --ciphertext-blob fileb://secrets.yaml.enc \
             --output text \
             --query Plaintext \
             --key-id ${{ secrets.KMS_KEY_ID }} \
+            --region ${{ secrets.AWS_REGION }} \
             | base64 --decode > secrets.yaml
 
   # Phase 6: Deploy to Cloud
