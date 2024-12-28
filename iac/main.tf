@@ -99,3 +99,54 @@ data "aws_ami" "ubuntu" {
     values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
 }
+
+# Crear un Network ACL para la VPC
+resource "aws_network_acl" "main_acl" {
+  vpc_id = aws_vpc.main.id
+
+  # Regla de entrada para permitir tráfico SSH en el puerto 22 desde cualquier fuente
+  ingress {
+    rule_no       = 100
+    protocol      = "tcp"
+    from_port     = 22
+    to_port       = 22
+    cidr_block    = "0.0.0.0/0"  # Permitir desde cualquier IP
+    rule_action   = "allow"
+  }
+
+  # Regla de entrada para permitir tráfico HTTP en el puerto 80
+  ingress {
+    rule_no       = 110
+    protocol      = "tcp"
+    from_port     = 80
+    to_port       = 80
+    cidr_block    = "0.0.0.0/0"  # Permitir tráfico HTTP desde cualquier fuente
+    rule_action   = "allow"
+  }
+
+  # Regla de salida para permitir todo el tráfico de salida
+  egress {
+    rule_no       = 100
+    protocol      = "tcp"
+    from_port     = 0
+    to_port       = 0
+    cidr_block    = "0.0.0.0/0"  # Permitir salida a cualquier dirección
+    rule_action   = "allow"
+  }
+
+  # Regla de salida para denegar todo el tráfico si no está especificado
+  egress {
+    rule_no       = 200
+    protocol      = "tcp"
+    from_port     = 0
+    to_port       = 0
+    cidr_block    = "0.0.0.0/0"
+    rule_action   = "deny"
+  }
+}
+
+# Asociar el NACL con la subred
+resource "aws_network_acl_association" "main_acl_association" {
+  network_acl_id = aws_network_acl.main_acl.id
+  subnet_id      = aws_subnet.main.id
+}
