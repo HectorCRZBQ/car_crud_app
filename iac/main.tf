@@ -111,7 +111,7 @@ resource "aws_network_acl" "main_acl" {
     from_port     = 22
     to_port       = 22
     cidr_block    = "0.0.0.0/0"  # Permitir desde cualquier IP
-    rule_action   = "allow"
+    action   = "allow"
   }
 
   # Regla de entrada para permitir tráfico HTTP en el puerto 80
@@ -121,7 +121,7 @@ resource "aws_network_acl" "main_acl" {
     from_port     = 80
     to_port       = 80
     cidr_block    = "0.0.0.0/0"  # Permitir tráfico HTTP desde cualquier fuente
-    rule_action   = "allow"
+    action   = "allow"
   }
 
   # Regla de salida para permitir todo el tráfico de salida
@@ -131,7 +131,7 @@ resource "aws_network_acl" "main_acl" {
     from_port     = 0
     to_port       = 0
     cidr_block    = "0.0.0.0/0"  # Permitir salida a cualquier dirección
-    rule_action   = "allow"
+    action   = "allow"
   }
 
   # Regla de salida para denegar todo el tráfico si no está especificado
@@ -141,7 +141,7 @@ resource "aws_network_acl" "main_acl" {
     from_port     = 0
     to_port       = 0
     cidr_block    = "0.0.0.0/0"
-    rule_action   = "deny"
+    action   = "deny"
   }
 }
 
