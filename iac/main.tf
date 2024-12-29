@@ -164,9 +164,3 @@ output "private_key" {
   sensitive   = true
   description = "Clave PEM privada generada por Terraform"
 }
-
-# Output de la IP pública de la instancia
-output "instance_public_ip" {
-  value       = aws_instance.web.public_ip
-  description = "Dirección IP pública de la instancia EC2"
-}
