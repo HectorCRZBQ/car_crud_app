@@ -15,14 +15,3 @@ output "subnet_id" {
   description = "ID de la subred pública creada"
   value       = aws_subnet.main.id
 }
-
-output "instance_public_ip" {
-  description = "Public IP of EC2 instance"
-  value       = aws_instance.web.public_ip
-}
-
-output "private_key" {
-  description = "Private key for SSH access"
-  value       = tls_private_key.ssh.private_key_pem
-  sensitive   = true
-}
