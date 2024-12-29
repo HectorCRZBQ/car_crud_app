@@ -132,8 +132,122 @@ jobs:
           ./tests/test_security.sh
         continue-on-error: true
 
-          ssh $SSH_OPTS -i ~/.ssh/web_app_key.pem ubuntu@$INSTANCE_IP "sudo systemctl restart web-app"
+# Phase 5: Infrastructure Setup (Terraform)
+  infrastructure:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      instance_public_ip: ${{ steps.get-ip.outputs.instance_public_ip }}
 
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Get GitHub Actions IP
+        id: ip
+        run: |
+          echo "::set-output name=actions_ip::$(curl -s https://api.ipify.org)/32"
+
+      - name: Create Terraform Variables File
+        run: |
+          cat > ./iac/terraform.tfvars <<EOF
+          github_actions_ip = "${{ steps.ip.outputs.actions_ip }}"
+          EOF
+
+      - name: Terraform Init
+        working-directory: ./iac
+        run: terraform init
+
+      - name: Terraform Plan
+        working-directory: ./iac
+        run: terraform plan -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: ./iac
+        run: terraform apply -auto-approve tfplan
+
+      - name: Get Instance Public IP
+        working-directory: ./iac
+        id: get-ip
+        run: echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+        
+      - name: Save SSH Key
+        working-directory: ./iac
+        run: |
+          mkdir -p ~/.ssh
+          terraform output -raw private_key > ~/.ssh/web_app_key.pem
+          chmod 400 ~/.ssh/web_app_key.pem
+
+      - name: Upload SSH Key as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ssh-key
+          path: ~/.ssh/web_app_key.pem
+          retention-days: 1
+
+# Phase 6: Deploy to Cloud
+  deploy:
+    needs: infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      
+      - name: Download SSH Key
+        uses: actions/download-artifact@v4
+        with:
+          name: ssh-key
+          path: ~/.ssh
+
+      - name: Set SSH Key Permissions
+        run: chmod 400 ~/.ssh/web_app_key.pem
+
+      - name: Deploy Application to EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          echo "Deploying to $INSTANCE_IP"
+          
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
+          
+          # Wait for instance to be ready
+          for i in {1..30}; do
+            if ssh $SSH_OPTS -i ~/.ssh/web_app_key.pem ubuntu@$INSTANCE_IP "echo 'Connection test'"; then
+              break
+            fi
+            echo "Waiting for instance to be ready... attempt $i"
+            sleep 10
+          done
+          
+          # Create directory and set permissions
+          ssh $SSH_OPTS -i ~/.ssh/web_app_key.pem ubuntu@$INSTANCE_IP "sudo mkdir -p /var/www/web-app && sudo chown ubuntu:ubuntu /var/www/web-app"
+          
+          # Copy files
+          scp $SSH_OPTS -i ~/.ssh/web_app_key.pem -r ./static ubuntu@$INSTANCE_IP:/var/www/web-app/
+          scp $SSH_OPTS -i ~/.ssh/web_app_key.pem -r ./templates ubuntu@$INSTANCE_IP:/var/www/web-app/
+          scp $SSH_OPTS -i ~/.ssh/web_app_key.pem ./app.py ubuntu@$INSTANCE_IP:/var/www/web-app/
+          scp $SSH_OPTS -i ~/.ssh/web_app_key.pem secrets.yaml ubuntu@$INSTANCE_IP:/var/www/web-app/
+          
+          ssh $SSH_OPTS -i ~/.ssh/web_app_key.pem ubuntu@$INSTANCE_IP "sudo systemctl restart web-app"
 
 # Phase 7: Release
 # release:
