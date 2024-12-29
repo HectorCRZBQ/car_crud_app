@@ -2,42 +2,33 @@ provider "aws" {
   region = var.region
 }
 
-# Crear VPC principal
+# Generate SSH Key
+resource "tls_private_key" "ssh" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Create AWS Key Pair
+resource "aws_key_pair" "web_key" {
+  key_name   = "web-app-key"
+  public_key = tls_private_key.ssh.public_key_openssh
+}
+
+# VPC Configuration (existing code remains the same)
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
+  
   tags = {
     Name = "Main-VPC"
-    Description = "VPC principal para la infraestructura"
   }
 }
 
-# Crear subred pública dentro de la VPC
-resource "aws_subnet" "main" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  map_public_ip_on_launch = true
-  availability_zone       = data.aws_availability_zones.available.names[0]
-  tags = {
-    Name = "Main-Subnet"
-    Description = "Subred pública asociada a la VPC principal"
-  }
-}
-
-# Crear una puerta de enlace de Internet para la VPC
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  tags = {
-    Name = "Main-IGW"
-    Description = "Puerta de enlace de Internet para la VPC"
-  }
-}
-
-# Crear un grupo de seguridad que permita tráfico HTTP
+# Update the security group to only allow GitHub Actions IP
 resource "aws_security_group" "allow_http" {
   name        = "allow_http"
-  description = "Allow HTTP traffic"
+  description = "Allow HTTP and restricted SSH traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -51,7 +42,7 @@ resource "aws_security_group" "allow_http" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]  # Asegúrate de que sea accesible desde GitHub Actions o tu IP local
+    cidr_blocks = [var.github_actions_ip]  # Restrict SSH access
   }
 
   egress {
@@ -60,18 +51,27 @@ resource "aws_security_group" "allow_http" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+# Add route table for internet access
+resource "aws_route_table" "main" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
 
   tags = {
-    Name = "allow_http"
-    Description = "Grupo de seguridad que permite tráfico HTTP desde cualquier lugar"
+    Name = "Main Route Table"
   }
 }
 
-# Crear una clave SSH para la instancia EC2
-resource "aws_key_pair" "web_key" {
-  key_name   = "web-key"
-  public_key = file("~/.ssh/id_rsa.pub")  # Asegúrate de tener tu clave pública aquí
+resource "aws_route_table_association" "main" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.main.id
 }
+
 
 # Crear una instancia EC2 para alojar una aplicación web
 resource "aws_instance" "web" {
