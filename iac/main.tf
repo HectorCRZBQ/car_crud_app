@@ -75,7 +75,7 @@ resource "tls_private_key" "web_key" {
 
 # Crear el key pair en AWS
 resource "aws_key_pair" "web_key" {
-  key_name   = "web-key"
+  key_name   = "web_key"
   public_key = tls_private_key.web_key.public_key_openssh
 }
 
@@ -140,27 +140,10 @@ resource "aws_network_acl" "main_acl" {
     cidr_block    = "0.0.0.0/0"  # Permitir salida a cualquier dirección
     action   = "allow"
   }
-
-  # Regla de salida para denegar todo el tráfico si no está especificado
-  egress {
-    rule_no       = 200
-    protocol      = "tcp"
-    from_port     = 0
-    to_port       = 0
-    cidr_block    = "0.0.0.0/0"
-    action   = "deny"
-  }
 }
 
 # Asociar el NACL con la subred
 resource "aws_network_acl_association" "main_acl_association" {
   network_acl_id = aws_network_acl.main_acl.id
   subnet_id      = aws_subnet.main.id
-}
-
-# Output de la clave privada para usarla en el pipeline
-output "private_key" {
-  value       = tls_private_key.web_key.private_key_pem
-  sensitive   = true
-  description = "Clave PEM privada generada por Terraform"
 }

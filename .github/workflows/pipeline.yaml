@@ -167,16 +167,15 @@ jobs:
         working-directory: ./iac
         run: terraform apply -auto-approve tfplan
 
-      - name: Get Instance Public IP
-        working-directory: ./iac
-        id: get-ip
-        run: echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+      - name: Get SSH private key from Terraform output
+        id: get-ssh-key
+        run: echo "::set-output name=private_key::$(terraform output -raw private_key)"
 
       - name: Save SSH private key from Terraform output
         run: |
           mkdir -p ~/.ssh
-          echo "${{ steps.get-ssh-key.outputs.private_key }}" > ~/.ssh/id_rsa
-          chmod 400 ~/.ssh/id_rsa  # Establece permisos 400 para la clave privada
+          echo "${{ steps.get-ssh-key.outputs.private_key }}" > ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem   # Establece permisos 400 para la clave privada
 
       - name: Decrypt secrets.yaml using KMS
         env:
@@ -208,8 +207,8 @@ jobs:
       - name: Save SSH private key from Terraform output
         run: |
           mkdir -p ~/.ssh
-          echo "${{ steps.get-ssh-key.outputs.private_key }}" > ~/.ssh/id_rsa
-          chmod 400 ~/.ssh/id_rsa  # Establece permisos 400 para la clave privada
+          echo "${{ steps.get-ssh-key.outputs.private_key }}" > ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
 
       - name: Deploy Application to EC2
         env:
@@ -220,15 +219,15 @@ jobs:
           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
           
           # Crear el directorio y establecer permisos
-          ssh $SSH_OPTS -i ~/.ssh/id_rsa ubuntu@$INSTANCE_IP "sudo mkdir -p /var/www/web-app && sudo chown ubuntu:ubuntu /var/www/web-app"
+          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP "sudo mkdir -p /var/www/web-app && sudo chown ubuntu:ubuntu /var/www/web-app"
           
           # Copiar los archivos
-          scp $SSH_OPTS -i ~/.ssh/id_rsa -r ./static ubuntu@$INSTANCE_IP:/var/www/web-app/static
-          scp $SSH_OPTS -i ~/.ssh/id_rsa -r ./templates ubuntu@$INSTANCE_IP:/var/www/web-app/templates
-          scp $SSH_OPTS -i ~/.ssh/id_rsa ./app.py ubuntu@$INSTANCE_IP:/var/www/web-app/app.py
-          scp $SSH_OPTS -i ~/.ssh/id_rsa secrets.yaml ubuntu@$INSTANCE_IP:/var/www/web-app/secrets.yaml
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:/var/www/web-app/static
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:/var/www/web-app/templates
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:/var/www/web-app/app.py
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem secrets.yaml ubuntu@$INSTANCE_IP:/var/www/web-app/secrets.yaml
           
-          ssh $SSH_OPTS -i ~/.ssh/id_rsa ubuntu@$INSTANCE_IP <<EOF
+          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
             sudo systemctl restart web-app
           EOF
 

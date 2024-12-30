@@ -273,22 +273,21 @@ Nos genera un archivo secrets.yaml.enc
 
 El valor de KMS es un secreto del repositorio de Github, bajo el nombre KMS_KEY_ID.
 
-Necesitamos tener una clave SSH para que se puedan copiar los archivos dentro del EC2, para crearla se ejecuta:
-
-   ```
-   ssh-keygen -t rsa -b 2048 -f ~/.ssh/id_rsa -N ""
-
-   cat ~/.ssh/id_rsa # Se copia el contenido dentro del secreto SSH_PRIVATE_KEY
-   ```
-
-El contenido que se obtiene se integra como un secreto con el nombre SSH_PRIVATE_KEY
-
 Dentro del código en la parte de **deploy** de GithubActions vamos a realizar los siguientes acciones:
 
  - Definir y configurar los credenciales de AWS que vamos a usar
  - Descargar los artefactos construidos
- - Despliegue en bucket S3
- - Copia de los artefactos dentro del Bucket S3
+ - Despliegue en el EC2
+ - Copia de los artefactos dentro del EC2
+
+
+ Una vez que se haya creado todo la infraestructura necesaria, se puede realizar el despliegue:
+
+  - Accedemos a la instancia EC2
+
+   ```
+   ssh -i ~/.ssh/web_key.pem ubuntu@34.241.109.178
+   ```
 
 
 ## 7. Operate / Infraestructure
@@ -326,7 +325,7 @@ Los pasos que se deben ejecutar con Terraform son los siguientes:
 
    Para realizar este paso se ejcuta el siguiente comando:
    ```
-   terraform plan
+   terraform plan -out=tfplan
    ```
 
    ![Imagen](/images/image-9.png)
@@ -339,11 +338,39 @@ Los pasos que se deben ejecutar con Terraform son los siguientes:
 
    Para realizar este paso se ejcuta el siguiente comando:
    ```
-   terraform apply
+   terraform apply -auto-approve tfplan
    ```
    ![Imagen](/images/image-11.png)
+
+ - Extraemos el valor de la IP publica de la instancia de EC2
+   
+   ```
+   terraform output instance_public_ip
+   ```
+
    ![Imagen](/images/image-12.png)
+
+ - Copiamos el valor de la clave PEM generada por terraform y la alamcenamos dentro de ssh
+
+   ```
+   terraform output -raw private_key > ~/.ssh/web_key.pem
+   ```
+
    ![Imagen](/images/image-13.png)
+   ![Imagen](/images/image-14.png)
+
+ - Verificamos los permisos necesarios de la clave privada
+
+   ```
+   chmod 400 ~/.ssh/web_key.pem
+
+   ls -la # Lo revisamos en el directorio .ssh que contiene la clave web_key.pem
+   ```
+   
+   ![Imagen](/images/image-15.png)
+
+   ![Imagen](/images/image-16.png)
+
 
 
 Dentro de AWS podemos observar como tras todos los pasos se han creado los 
@@ -356,8 +383,6 @@ Los valores del usuario creados los incorporamos como Secretos:
 
 Tambien tenemos que añadir el valor que tenemos en secrets.yaml como secreto para que siga estando funcional la conexión a la base de datos
   - MONGODB_URI: mongodb+srv://<db_user>:<db_password>@<db_name>.gtphu.mongodb.net/?retryWrites=true&w=majority&appName=<db_name>
-
-   ![Imagen](/images/image-14.png)
 
 
 Dentro del código en la parte de **infraestructure** de GithubActions vamos a realizar los siguientes acciones:
@@ -392,15 +417,19 @@ Y por ultimo lo pusheamos a la rama *main*
 ```
    git push origin main
 ```
-![Imagen](/images/image-15.png)
+![Imagen](/images/image-20.png)
 
-Tenemos desplegado el Bucket S3 en AWS:
+Tenemos desplegado la instancia EC2 en AWS:
 
-![Imagen](/images/image-16.png)
+![Imagen](/images/image-20.png)
 
-Tenemos la tabla de DynamoDB en AWS:
+Tenemos el VPC en AWS:
 
-![Imagen](/images/image-17.png)
+![Imagen](/images/image-20.png)
+
+Tenemos el KMS en AWS:
+
+![Imagen](/images/image-20.png)
 
 
 ## Limpieza de la ejecucción
