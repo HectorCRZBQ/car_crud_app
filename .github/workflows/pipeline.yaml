@@ -132,106 +132,106 @@ jobs:
           ./tests/test_security.sh
         continue-on-error: true
 
-# Phase 5: Infrastructure Setup (Terraform)
-infrastructure:
-  needs: test
-  runs-on: ubuntu-latest
-  outputs:
-    instance_public_ip: ${{ steps.get-ip.outputs.instance_public_ip }}
+  # Phase 5: Infrastructure Setup (Terraform)
+  infrastructure:
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      instance_public_ip: ${{ steps.get-ip.outputs.instance_public_ip }}
 
-  steps:
-    - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v3
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Setup Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
-        terraform_wrapper: false
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
-    - name: Terraform Init
-      working-directory: ./iac
-      run: terraform init
+      - name: Terraform Init
+        working-directory: ./iac
+        run: terraform init
 
-    - name: Terraform Plan
-      working-directory: ./iac
-      run: terraform plan -out=tfplan
+      - name: Terraform Plan
+        working-directory: ./iac
+        run: terraform plan -out=tfplan
 
-    - name: Terraform Apply
-      working-directory: ./iac
-      run: terraform apply -auto-approve tfplan
+      - name: Terraform Apply
+        working-directory: ./iac
+        run: terraform apply -auto-approve tfplan
 
-    - name: Get Instance Public IP
-      working-directory: ./iac
-      id: get-ip
-      run: |
-        echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+      - name: Get Instance Public IP
+        working-directory: ./iac
+        id: get-ip
+        run: |
+          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
 
-    - name: Save SSH private key from Terraform output
-      run: |
-        mkdir -p ~/.ssh
-        echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
-        chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
+      - name: Save SSH private key from Terraform output
+        run: |
+          mkdir -p ~/.ssh
+          echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
 
-    - name: Decrypt secrets.yaml using KMS
-      env:
-        AWS_REGION: ${{ secrets.AWS_REGION }}
-      run: |
-        aws kms decrypt \
-          --ciphertext-blob fileb://secrets.yaml.enc \
-          --output text \
-          --query Plaintext \
-          --key-id ${{ secrets.KMS_KEY_ID }} \
-          --region ${{ secrets.AWS_REGION }} \
-          | base64 --decode > secrets.yaml
+      - name: Decrypt secrets.yaml using KMS
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: |
+          aws kms decrypt \
+            --ciphertext-blob fileb://secrets.yaml.enc \
+            --output text \
+            --query Plaintext \
+            --key-id ${{ secrets.KMS_KEY_ID }} \
+            --region ${{ secrets.AWS_REGION }} \
+            | base64 --decode > secrets.yaml
 
-# Phase 6: Deploy to Cloud
-deploy:
-  needs: infrastructure
-  runs-on: ubuntu-latest
+  # Phase 6: Deploy to Cloud
+  deploy:
+    needs: infrastructure
+    runs-on: ubuntu-latest
 
-  steps:
-    - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v3
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Save SSH private key from Terraform output
-      run: |
-        mkdir -p ~/.ssh
-        echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
-        chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
+      - name: Save SSH private key from Terraform output
+        run: |
+          mkdir -p ~/.ssh
+          echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
 
-    - name: Deploy Application to EC2
-      env:
-        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
-      run: |
-        echo "Deploying to $INSTANCE_IP"
-        
-        export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
-        
-        # Crear el directorio y establecer permisos
-        ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP "sudo mkdir -p /var/www/web-app && sudo chown ubuntu:ubuntu /var/www/web-app"
-        
-        # Copiar los archivos
-        scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:/var/www/web-app/static
-        scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:/var/www/web-app/templates
-        scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:/var/www/web-app/app.py
-        scp $SSH_OPTS -i ~/.ssh/web_key.pem secrets.yaml ubuntu@$INSTANCE_IP:/var/www/web-app/secrets.yaml
-        
-        ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
-          sudo systemctl restart web-app
-        EOF
+      - name: Deploy Application to EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          echo "Deploying to $INSTANCE_IP"
+          
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
+          
+          # Crear el directorio y establecer permisos
+          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP "sudo mkdir -p /var/www/web-app && sudo chown ubuntu:ubuntu /var/www/web-app"
+          
+          # Copiar los archivos
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:/var/www/web-app/static
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:/var/www/web-app/templates
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:/var/www/web-app/app.py
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem secrets.yaml ubuntu@$INSTANCE_IP:/var/www/web-app/secrets.yaml
+          
+          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
+            sudo systemctl restart web-app
+          EOF
 
 
 # Phase 7: Release
