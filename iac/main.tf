@@ -2,13 +2,49 @@ provider "aws" {
   region = var.region
 }
 
+# Crear el bucket de S3 para el estado de Terraform
+resource "aws_s3_bucket" "terraform_state" {
+  bucket = "mi-bucket-terraform-state"  # Cambia esto por un nombre único
+
+  tags = {
+    Name        = "TerraformState"
+    Description = "Bucket para almacenar el estado de Terraform"
+  }
+}
+
+# Crear la tabla DynamoDB para bloqueo de Terraform
+resource "aws_dynamodb_table" "terraform_locks" {
+  name           = "tabla-de-lock-terraform"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "LockID"
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
+  tags = {
+    Name        = "Terraform Lock Table"
+    Description = "Table for managing Terraform state locks"
+  }
+}
+
+# Backend de Terraform (con S3 y DynamoDB para bloqueos)
+terraform {
+  backend "s3" {
+    bucket         = aws_s3_bucket.terraform_state.bucket
+    key            = "terraform.tfstate"
+    region         = var.region
+    encrypt        = true
+    dynamodb_table = aws_dynamodb_table.terraform_locks.name
+  }
+}
+
 # Crear VPC principal
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
   enable_dns_hostnames = true
   tags = {
-    Name = "Main-VPC"
+    Name        = "Main-VPC"
     Description = "VPC principal para la infraestructura"
   }
 }
@@ -20,7 +56,7 @@ resource "aws_subnet" "main" {
   map_public_ip_on_launch = true
   availability_zone       = data.aws_availability_zones.available.names[0]
   tags = {
-    Name = "Main-Subnet"
+    Name        = "Main-Subnet"
     Description = "Subred pública asociada a la VPC principal"
   }
 }
@@ -29,15 +65,36 @@ resource "aws_subnet" "main" {
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags = {
-    Name = "Main-IGW"
+    Name        = "Main-IGW"
     Description = "Puerta de enlace de Internet para la VPC"
   }
 }
 
-# Crear un grupo de seguridad que permita tráfico HTTP
+# Crear una tabla de rutas para la subred pública
+resource "aws_route_table" "main" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.main.id
+  }
+
+  tags = {
+    Name        = "Main-RouteTable"
+    Description = "Tabla de rutas para la VPC"
+  }
+}
+
+# Asociar la tabla de rutas a la subred pública
+resource "aws_route_table_association" "main" {
+  subnet_id      = aws_subnet.main.id
+  route_table_id = aws_route_table.main.id
+}
+
+# Crear un grupo de seguridad que permita tráfico HTTP y SSH
 resource "aws_security_group" "allow_http" {
   name        = "allow_http"
-  description = "Allow HTTP traffic"
+  description = "Allow HTTP and SSH traffic"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -62,12 +119,12 @@ resource "aws_security_group" "allow_http" {
   }
 
   tags = {
-    Name = "allow_http"
+    Name        = "allow_http"
     Description = "Grupo de seguridad que permite tráfico HTTP desde cualquier lugar"
   }
 }
 
-# Crear una clave SSH usando TLS para la instancia EC2 (sin necesidad de usar una clave pública local)
+# Crear una clave SSH usando TLS para la instancia EC2
 resource "tls_private_key" "web_key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -89,7 +146,7 @@ resource "aws_instance" "web" {
   key_name               = aws_key_pair.web_key.key_name  # Asociar el key pair generado
 
   tags = {
-    Name = "Web-Instance"
+    Name        = "Web-Instance"
     Description = "Instancia EC2 para alojar una aplicación web"
   }
 }
@@ -100,50 +157,9 @@ data "aws_availability_zones" "available" {}
 # Seleccionar la AMI más reciente de Ubuntu 20.04 LTS
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"] # Ubuntu owner ID
+  owners      = ["099720109477"]  # Ubuntu owner ID
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
-}
-
-# Crear un Network ACL para la VPC
-resource "aws_network_acl" "main_acl" {
-  vpc_id = aws_vpc.main.id
-
-  # Regla de entrada para permitir tráfico SSH en el puerto 22 desde cualquier fuente
-  ingress {
-    rule_no       = 100
-    protocol      = "tcp"
-    from_port     = 22
-    to_port       = 22
-    cidr_block    = "0.0.0.0/0"  # Permitir desde cualquier IP
-    action   = "allow"
-  }
-
-  # Regla de entrada para permitir tráfico HTTP en el puerto 80
-  ingress {
-    rule_no       = 110
-    protocol      = "tcp"
-    from_port     = 80
-    to_port       = 80
-    cidr_block    = "0.0.0.0/0"  # Permitir tráfico HTTP desde cualquier fuente
-    action   = "allow"
-  }
-
-  # Regla de salida para permitir todo el tráfico de salida
-  egress {
-    rule_no       = 100
-    protocol      = "tcp"
-    from_port     = 0
-    to_port       = 0
-    cidr_block    = "0.0.0.0/0"  # Permitir salida a cualquier dirección
-    action   = "allow"
-  }
-}
-
-# Asociar el NACL con la subred
-resource "aws_network_acl_association" "main_acl_association" {
-  network_acl_id = aws_network_acl.main_acl.id
-  subnet_id      = aws_subnet.main.id
 }

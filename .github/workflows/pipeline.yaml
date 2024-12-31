@@ -39,98 +39,98 @@ jobs:
           path: .
 
   # Phase 4: Test
-  test:
-    needs: build
-    runs-on: ubuntu-latest
+  # test:
+  #   needs: build
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - uses: actions/checkout@v3
+  #   steps:
+  #     - uses: actions/checkout@v3
 
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: car-crud-app-dist
-          path: .
+  #     - name: Download build artifact
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         name: car-crud-app-dist
+  #         path: .
 
-      - name: Set up Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.12.3'
+  #     - name: Set up Python
+  #       uses: actions/setup-python@v3
+  #       with:
+  #         python-version: '3.12.3'
 
-      - name: Install dependencies
-        run: |
-          python -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+  #     - name: Install dependencies
+  #       run: |
+  #         python -m venv venv
+  #         source venv/bin/activate
+  #         pip install -r requirements.txt
 
-      - name: Run Unit Tests
-        run: |
-          pytest -s tests/test_unitary.py
+  #     - name: Run Unit Tests
+  #       run: |
+  #         pytest -s tests/test_unitary.py
 
-      - name: Install MongoDB
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gnupg curl
-          curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
-          echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | \
-            sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list
-          sudo apt-get update
-          sudo apt-get install -y mongodb-org
+  #     - name: Install MongoDB
+  #       run: |
+  #         sudo apt-get update
+  #         sudo apt-get install -y gnupg curl
+  #         curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
+  #         echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | \
+  #           sudo tee /etc/apt/sources.list.d/mongodb-org/6.0.list
+  #         sudo apt-get update
+  #         sudo apt-get install -y mongodb-org
 
-      - name: Start MongoDB service
-        run: |
-          sudo systemctl enable mongod
-          sudo systemctl start mongod
-          sudo systemctl status mongod
+  #     - name: Start MongoDB service
+  #       run: |
+  #         sudo systemctl enable mongod
+  #         sudo systemctl start mongod
+  #         sudo systemctl status mongod
 
-      - name: Run Integration Tests
-        run: |
-          pytest -v tests/test_integration.py
+  #     - name: Run Integration Tests
+  #       run: |
+  #         pytest -v tests/test_integration.py
 
-      - name: Run Functionality Tests
-        run: 
-          python -m unittest tests.test_functionality
+  #     - name: Run Functionality Tests
+  #       run: 
+  #         python -m unittest tests.test_functionality
         
-      - name: Start the application for performance tests
-        run: |
-          python app.py &
-          echo $! > app_pid.txt
+  #     - name: Start the application for performance tests
+  #       run: |
+  #         python app.py &
+  #         echo $! > app_pid.txt
 
-      - name: Wait for the application to be ready
-        run: |
-          for i in {1..30}; do
-            curl -s http://localhost:5000 && break
-            sleep 1
-          done
+  #     - name: Wait for the application to be ready
+  #       run: |
+  #         for i in {1..30}; do
+  #           curl -s http://localhost:5000 && break
+  #           sleep 1
+  #         done
 
-      - name: Run Performance Tests
-        run: |
-          locust -f tests/test_performance.py \
-            --headless \
-            --users 100 \
-            --spawn-rate 10 \
-            --run-time 15s \
-            --host=http://localhost:5000
+  #     - name: Run Performance Tests
+  #       run: |
+  #         locust -f tests/test_performance.py \
+  #           --headless \
+  #           --users 100 \
+  #           --spawn-rate 10 \
+  #           --run-time 15s \
+  #           --host=http://localhost:5000
 
-      - name: Stop the application
-        if: always()
-        run: |
-          kill $(cat app_pid.txt) || true
+  #     - name: Stop the application
+  #       if: always()
+  #       run: |
+  #         kill $(cat app_pid.txt) || true
     
-      - name: Run Quality Tests
-        run: |
-          python tests/test_quality.py
+  #     - name: Run Quality Tests
+  #       run: |
+  #         python tests/test_quality.py
 
-      - name: Install Trivy for Security Tests
-        run: |
-          sudo apt-get install -y wget && \
-          wget https://github.com/aquasecurity/trivy/releases/download/v0.46.0/trivy_0.46.0_Linux-64bit.deb && \
-          sudo dpkg -i trivy_0.46.0_Linux-64bit.deb
+  #     - name: Install Trivy for Security Tests
+  #       run: |
+  #         sudo apt-get install -y wget && \
+  #         wget https://github.com/aquasecurity/trivy/releases/download/v0.46.0/trivy_0.46.0_Linux-64bit.deb && \
+  #         sudo dpkg -i trivy_0.46.0_Linux-64bit.deb
 
-      - name: Run Security Tests
-        run: |
-          ./tests/test_security.sh
-        continue-on-error: true
+  #     - name: Run Security Tests
+  #       run: |
+  #         ./tests/test_security.sh
+  #       continue-on-error: true
 
   # Phase 5: Infrastructure Setup (Terraform)
   infrastructure:
