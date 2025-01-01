@@ -30,11 +30,11 @@ resource "aws_dynamodb_table" "terraform_locks" {
 # Backend de Terraform (con S3 y DynamoDB para bloqueos)
 terraform {
   backend "s3" {
-    bucket         = aws_s3_bucket.terraform_state.bucket
+    bucket         = "mi-bucket-terraform-state"
     key            = "terraform.tfstate"
-    region         = var.region
+    region         = "eu-west-1"
     encrypt        = true
-    dynamodb_table = aws_dynamodb_table.terraform_locks.name
+    dynamodb_table = "tabla-de-lock-terraform"
   }
 }
 
