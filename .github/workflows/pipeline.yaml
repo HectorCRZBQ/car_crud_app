@@ -157,10 +157,16 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
+      
+      - name: Apply Backend Resources
+      working-directory: ./iac
+      run: |
+        terraform init -backend=false
+        terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
 
       - name: Terraform Init
         working-directory: ./iac
-        run: terraform init
+        run: terraform init -reconfigure
 
       - name: Terraform Plan
         working-directory: ./iac

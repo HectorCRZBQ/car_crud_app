@@ -2,50 +2,14 @@ provider "aws" {
   region = var.region
 }
 
-# Crear el bucket de S3 para el estado de Terraform con un nombre único
-resource "aws_s3_bucket" "terraform_state" {
-  bucket = local.bucket_name
-
-  tags = {
-    Name        = "TerraformState"
-    Description = "Bucket para almacenar el estado de Terraform"
-  }
-}
-
-# Nombre único para el bucket S3 basado en un prefijo y un sufijo generado
-locals {
-  bucket_name = "mi-bucket-terraform-state-${random_string.suffix.result}"
-}
-
-resource "random_string" "suffix" {
-  length  = 8
-  special = false
-  upper   = false
-}
-
-# Crear la tabla DynamoDB para bloqueo de Terraform
-resource "aws_dynamodb_table" "terraform_locks" {
-  name           = "tabla-de-lock-terraform"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "LockID"
-  attribute {
-    name = "LockID"
-    type = "S"
-  }
-  tags = {
-    Name        = "Terraform Lock Table"
-    Description = "Table for managing Terraform state locks"
-  }
-}
-
 # Backend de Terraform (con S3 y DynamoDB para bloqueos)
 terraform {
   backend "s3" {
-    bucket         = local.bucket_name
+    bucket         = "mi-bucket-terraform-state"
     key            = "terraform.tfstate"
-    region         = var.region
+    region         = "eu-west-1"
     encrypt        = true
-    dynamodb_table = aws_dynamodb_table.terraform_locks.name
+    dynamodb_table = "tabla-de-lock-terraform"
   }
 }
 
@@ -119,7 +83,7 @@ resource "aws_security_group" "allow_http" {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"]  # Asegúrate de que sea accesible desde GitHub Actions o tu IP local
   }
 
   egress {
@@ -154,7 +118,7 @@ resource "aws_instance" "web" {
 
   subnet_id              = aws_subnet.main.id
   vpc_security_group_ids = [aws_security_group.allow_http.id]
-  key_name               = aws_key_pair.web_key.key_name
+  key_name               = aws_key_pair.web_key.key_name  # Asociar el key pair generado
 
   tags = {
     Name        = "Web-Instance"
@@ -168,7 +132,7 @@ data "aws_availability_zones" "available" {}
 # Seleccionar la AMI más reciente de Ubuntu 20.04 LTS
 data "aws_ami" "ubuntu" {
   most_recent = true
-  owners      = ["099720109477"]
+  owners      = ["099720109477"]  # Ubuntu owner ID
   filter {
     name   = "name"
     values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
