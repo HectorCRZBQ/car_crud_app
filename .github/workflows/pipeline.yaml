@@ -140,7 +140,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     outputs:
-      instance_public_ip: ${{ steps.get-ip.outputs.instance_public_ip }}
+      instance_public_ip: ${{ env.instance_public_ip }}
 
     steps:
       - uses: actions/checkout@v3
@@ -180,7 +180,7 @@ jobs:
         working-directory: ./iac
         id: get-ip
         run: |
-          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
+          echo "instance_public_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_ENV
 
       - name: Save SSH private key from Terraform output
         run: |
