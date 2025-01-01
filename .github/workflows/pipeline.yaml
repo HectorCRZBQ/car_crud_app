@@ -140,7 +140,7 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     outputs:
-      instance_public_ip: ${{ env.instance_public_ip }}
+      instance_public_ip: ${{ steps.get-ip.outputs.instance_public_ip }}
 
     steps:
       - uses: actions/checkout@v3
@@ -159,10 +159,10 @@ jobs:
           terraform_wrapper: false
       
       - name: Apply Backend Resources
-      working-directory: ./iac
-      run: |
-        terraform init -backend=false
-        terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
+        working-directory: ./iac
+        run: |
+          terraform init -backend=false
+          terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
 
       - name: Terraform Init
         working-directory: ./iac
@@ -180,7 +180,7 @@ jobs:
         working-directory: ./iac
         id: get-ip
         run: |
-          echo "instance_public_ip=$(terraform output -raw instance_public_ip)" >> $GITHUB_ENV
+          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
 
       - name: Save SSH private key from Terraform output
         run: |
