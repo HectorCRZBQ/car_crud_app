@@ -169,12 +169,6 @@ jobs:
             --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
             --region ${{ env.AWS_REGION }}
 
-      - name: Apply Backend Resources (S3 Bucket and DynamoDB Table)
-        working-directory: ./iac
-        run: |
-          terraform init -backend=false
-          terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
-
       - name: Terraform Init (Configure Backend)
         working-directory: ./iac
         run: terraform init -reconfigure
