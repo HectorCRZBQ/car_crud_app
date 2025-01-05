@@ -224,13 +224,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-    - name: Download SSH private key
-      uses: actions/download-artifact@v3
-      with:
-        name: ssh-private-key
-      run: |
-        mv ./web_key.pem ~/.ssh/web_key.pem
-        chmod 400 ~/.ssh/web_key.pem
+      - name: Download SSH private key
+        uses: actions/download-artifact@v3
+        with:
+          name: ssh-private-key
+        run: |
+          mv ./web_key.pem ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem
 
       - name: Deploy Application to EC2
         env:
