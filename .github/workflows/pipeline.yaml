@@ -136,8 +136,8 @@ jobs:
     #     ./tests/test_security.sh
     #   continue-on-error: true
 
-  # Phase 5: Infrastructure and Deploy to Cloud (Terraform and Deployment)
-  deploy_infrastructure:
+  # Phase 5: Infrastructure Setup (Terraform)
+  infrastructure:
     needs: test
     runs-on: ubuntu-latest
     outputs:
@@ -158,7 +158,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
-
+      
       - name: Create S3 Bucket for Terraform State and DynamoDB Table for Locking
         run: |
           aws s3 mb s3://mi-bucket-terraform-state --region ${{ env.AWS_REGION }}
@@ -193,49 +193,109 @@ jobs:
           echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
           chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
 
-      - name: Deploy Application to EC2
-        env:
-          INSTANCE_IP: ${{ steps.get-ip.outputs.instance_public_ip }}
+      - name: Inspect SSH private key
         run: |
-          echo "Deploying to $INSTANCE_IP"
-          
-          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
+          echo "Inspecting the SSH key:"
+          cat ~/.ssh/web_key.pem
+          file ~/.ssh/web_key.pem
+          echo "Permissions:"
+          ls -l ~/.ssh/web_key.pem
 
-          # Conectar al EC2 e instalar dependencias antes de crear el entorno
-          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
-            # Actualizar el sistema e instalar dependencias
-            sudo apt update
-            sudo apt install -y python3-pip python3-venv
-            
-            # Crear el directorio para la aplicación
-            mkdir -p ~/car_crud_app && cd ~/car_crud_app
-            
-            # Crear entorno virtual e instalar dependencias
-            python3 -m venv venv
-            source venv/bin/activate
-          EOF
+      - name: Upload SSH private key as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ssh-private-key
+          path: ~/.ssh/web_key.pem
 
-      - name: Upload application files to EC2
+      - name: Decrypt secrets.yaml using KMS
         run: |
-          scp $SSH_OPTS -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
+          aws kms decrypt \
+            --ciphertext-blob fileb://secrets.yaml.enc \
+            --output text \
+            --query Plaintext \
+            --key-id ${{ secrets.KMS_KEY_ID }} \
+            --region ${{ secrets.AWS_REGION }} \
+            | base64 --decode > secrets.yaml
 
-      - name: Install dependencies and run the application
-        run: |
-          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
-            # Activar entorno virtual e instalar dependencias desde requirements2.txt
-            cd ~/car_crud_app
-            source venv/bin/activate
-            pip install -r requirements2.txt
+# Phase 6: Deploy to Cloud
+deploy:
+  needs: infrastructure
+  runs-on: ubuntu-latest
 
-            # Iniciar la aplicación Flask
-            flask run --host=0.0.0.0 &
-          EOF
+  steps:
+    - uses: actions/checkout@v3
 
-          echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Download SSH private key
+      uses: actions/download-artifact@v3
+      with:
+        name: ssh-private-key
+
+    - name: Verify and Move SSH private key
+      run: |
+        echo "Verifying artifact contents..."
+        ls -l ./ssh-private-key
+        if [ ! -f ./ssh-private-key/web_key.pem ]; then
+          echo "Error: SSH key artifact not found!"
+          exit 1
+        fi
+
+        mkdir -p ~/.ssh
+        mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem
+        chmod 400 ~/.ssh/web_key.pem
+        echo "Moved SSH key to ~/.ssh and set permissions."
+
+    - name: Deploy Application to EC2
+      env:
+        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+      run: |
+        echo "Deploying to $INSTANCE_IP"
+        
+        export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
+
+        # Conectar al EC2 e instalar dependencias antes de crear el entorno
+        ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
+          sudo apt update
+          sudo apt install -y python3-pip python3-venv
+          mkdir -p ~/car_crud_app && cd ~/car_crud_app
+          python3 -m venv venv
+          source venv/bin/activate
+        EOF
+
+    - name: Package application files
+      run: |
+        tar -czf app_files.tar.gz static templates app.py secrets.yaml requirements2.txt
+
+    - name: Upload application files to EC2
+      env:
+        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+      run: |
+        scp -o StrictHostKeyChecking=no -i ~/.ssh/web_key.pem app_files.tar.gz ubuntu@$INSTANCE_IP:~/car_crud_app/
+
+    - name: Extract and setup application on EC2
+      env:
+        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+      run: |
+        ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
+          cd ~/car_crud_app
+          tar -xzf app_files.tar.gz
+          rm app_files.tar.gz
+          source venv/bin/activate
+          pip install -r requirements2.txt
+          nohup flask run --host=0.0.0.0 &
+        EOF
+
+    - name: Deployment Complete
+      env:
+        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+      run: |
+        echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
 
 
 # Phase 7: Release
