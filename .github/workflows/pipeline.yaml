@@ -231,9 +231,9 @@ jobs:
 
       - name: Move SSH private key and set permissions
         run: |
-          mkdir -p /home/runner/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
-          mv /home/runner/work/car_crud_app/car_crud_app/web_key.pem /home/runner/.ssh/web_key.pem
-          chmod 400 /home/runner/.ssh/web_key.pem 
+          mkdir -p ~/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
+          mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem  # Verifica la ruta de descarga
+          chmod 400 ~/.ssh/web_key.pem  # Establecer permisos de sólo lectura
 
       - name: Deploy Application to EC2
         env:
@@ -241,8 +241,8 @@ jobs:
         run: |
           echo "Deploying to $INSTANCE_IP"
           
-           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
-          
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
+
           # Conectar al EC2 e instalar dependencias antes de crear el entorno
           ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
             # Actualizar el sistema e instalar dependencias
@@ -257,14 +257,16 @@ jobs:
             source venv/bin/activate
           EOF
 
-          # Copiar los archivos específicos desde el repositorio a la instancia EC2
+      - name: Upload application files to EC2
+        run: |
           scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
           scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
           scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
           scp $SSH_OPTS -i ~/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
           scp $SSH_OPTS -i ~/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
-          # Acceder nuevamente al EC2 para instalar dependencias de Python y ejecutar la aplicación
+      - name: Install dependencies and run the application
+        run: |
           ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
             # Activar entorno virtual e instalar dependencias desde requirements2.txt
             cd ~/car_crud_app
