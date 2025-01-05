@@ -228,6 +228,9 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ssh-private-key
+        run: |
+          mv ./web_key.pem ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem
 
       - name: Deploy Application to EC2
         env:
