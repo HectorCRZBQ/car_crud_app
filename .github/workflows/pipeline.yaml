@@ -224,13 +224,13 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download SSH private key
-        uses: actions/download-artifact@v3
-        with:
-          name: ssh-private-key
-        run: |
-          mv ./web_key.pem ~/.ssh/web_key.pem
-          chmod 400 ~/.ssh/web_key.pem
+    - name: Download SSH private key
+      uses: actions/download-artifact@v3
+      with:
+        name: ssh-private-key
+      run: |
+        mv ./web_key.pem ~/.ssh/web_key.pem
+        chmod 400 ~/.ssh/web_key.pem
 
       - name: Deploy Application to EC2
         env:
@@ -238,7 +238,7 @@ jobs:
         run: |
           echo "Deploying to $INSTANCE_IP"
           
-          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
           
           # Conectar al EC2 e instalar dependencias antes de crear el entorno
           ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
