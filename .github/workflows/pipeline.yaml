@@ -136,8 +136,8 @@ jobs:
     #     ./tests/test_security.sh
     #   continue-on-error: true
 
-  # Phase 5: Infrastructure Setup (Terraform)
-  infrastructure:
+  # Phase 5: Infrastructure and Deploy to Cloud (Terraform and Deployment)
+  deploy_infrastructure:
     needs: test
     runs-on: ubuntu-latest
     outputs:
@@ -158,7 +158,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
-      
+
       - name: Create S3 Bucket for Terraform State and DynamoDB Table for Locking
         run: |
           aws s3 mb s3://mi-bucket-terraform-state --region ${{ env.AWS_REGION }}
@@ -192,70 +192,17 @@ jobs:
           mkdir -p ~/.ssh
           echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
           chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
-      
-      - name: Upload SSH private key as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ssh-private-key
-          path: ~/.ssh/web_key.pem
-
-      - name: Decrypt secrets.yaml using KMS
-        run: |
-          aws kms decrypt \
-            --ciphertext-blob fileb://secrets.yaml.enc \
-            --output text \
-            --query Plaintext \
-            --key-id ${{ secrets.KMS_KEY_ID }} \
-            --region ${{ secrets.AWS_REGION }} \
-            | base64 --decode > secrets.yaml
-
-  # Phase 6: Deploy to Cloud
-  deploy:
-    needs: infrastructure
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v3
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Download SSH private key
-        uses: actions/download-artifact@v3
-        with:
-          name: ssh-private-key
-
-      - name: Verify the contents of the downloaded artifact
-        run: |
-          # Verificar qué archivos se han descargado y su ubicación
-          ls -l ./ssh-private-key
-
-      - name: Move SSH private key and set permissions
-        run: |
-          # Verificar que el archivo exista antes de moverlo
-          if [ -f ./ssh-private-key/web_key.pem ]; then
-            mkdir -p ~/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
-            mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem  # Mover el archivo a ~/.ssh
-            chmod 400 ~/.ssh/web_key.pem  # Establecer permisos de sólo lectura
-          else
-            echo "El archivo web_key.pem no se encuentra en el artefacto descargado."
-            exit 1
-          fi
 
       - name: Deploy Application to EC2
         env:
-          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+          INSTANCE_IP: ${{ steps.get-ip.outputs.instance_public_ip }}
         run: |
           echo "Deploying to $INSTANCE_IP"
           
-          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
 
           # Conectar al EC2 e instalar dependencias antes de crear el entorno
-          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
+          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
             # Actualizar el sistema e instalar dependencias
             sudo apt update
             sudo apt install -y python3-pip python3-venv
@@ -270,15 +217,15 @@ jobs:
 
       - name: Upload application files to EC2
         run: |
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
       - name: Install dependencies and run the application
         run: |
-          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
+          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
             # Activar entorno virtual e instalar dependencias desde requirements2.txt
             cd ~/car_crud_app
             source venv/bin/activate
@@ -289,6 +236,7 @@ jobs:
           EOF
 
           echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
+
 
 # Phase 7: Release
 # release:
