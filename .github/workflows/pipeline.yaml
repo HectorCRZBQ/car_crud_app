@@ -228,6 +228,8 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: ssh-private-key
+
+      - name: Move SSH private key and set permissions
         run: |
           mv ./web_key.pem ~/.ssh/web_key.pem
           chmod 400 ~/.ssh/web_key.pem
@@ -238,7 +240,7 @@ jobs:
         run: |
           echo "Deploying to $INSTANCE_IP"
           
-          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
+           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
           
           # Conectar al EC2 e instalar dependencias antes de crear el entorno
           ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
