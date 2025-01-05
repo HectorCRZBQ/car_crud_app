@@ -47,93 +47,93 @@ jobs:
     - name: Placeholder test step
       run: echo "Running tests..."
   
-  #     - uses: actions/checkout@v3
+    - uses: actions/checkout@v3
 
-  #     - name: Download build artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: car-crud-app-dist
-  #         path: .
+    - name: Download build artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: car-crud-app-dist
+        path: .
 
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v3
-  #       with:
-  #         python-version: '3.12.3'
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.12.3'
 
-  #     - name: Install dependencies
-  #       run: |
-  #         python -m venv venv
-  #         source venv/bin/activate
-  #         pip install -r requirements.txt
+    - name: Install dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
 
-  #     - name: Run Unit Tests
-  #       run: |
-  #         pytest -s tests/test_unitary.py
+    - name: Run Unit Tests
+      run: |
+        pytest -s tests/test_unitary.py
 
-  #     - name: Install MongoDB
-  #       run: |
-  #         sudo apt-get update
-  #         sudo apt-get install -y gnupg curl
-  #         curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
-  #         echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | \
-  #           sudo tee /etc/apt/sources.list.d/mongodb-org/6.0.list
-  #         sudo apt-get update
-  #         sudo apt-get install -y mongodb-org
+    - name: Install MongoDB
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnupg curl
+        curl -fsSL https://www.mongodb.org/static/pgp/server-6.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-6.0.gpg --dearmor
+        echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-6.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/6.0 multiverse" | \
+          sudo tee /etc/apt/sources.list.d/mongodb-org/6.0.list
+        sudo apt-get update
+        sudo apt-get install -y mongodb-org
 
-  #     - name: Start MongoDB service
-  #       run: |
-  #         sudo systemctl enable mongod
-  #         sudo systemctl start mongod
-  #         sudo systemctl status mongod
+    - name: Start MongoDB service
+      run: |
+        sudo systemctl enable mongod
+        sudo systemctl start mongod
+        sudo systemctl status mongod
 
-  #     - name: Run Integration Tests
-  #       run: |
-  #         pytest -v tests/test_integration.py
+    - name: Run Integration Tests
+      run: |
+        pytest -v tests/test_integration.py
 
-  #     - name: Run Functionality Tests
-  #       run: 
-  #         python -m unittest tests.test_functionality
-        
-  #     - name: Start the application for performance tests
-  #       run: |
-  #         python app.py &
-  #         echo $! > app_pid.txt
+    - name: Run Functionality Tests
+      run: 
+        python -m unittest tests.test_functionality
 
-  #     - name: Wait for the application to be ready
-  #       run: |
-  #         for i in {1..30}; do
-  #           curl -s http://localhost:5000 && break
-  #           sleep 1
-  #         done
+    - name: Start the application for performance tests
+      run: |
+        python app.py &
+        echo $! > app_pid.txt
 
-  #     - name: Run Performance Tests
-  #       run: |
-  #         locust -f tests/test_performance.py \
-  #           --headless \
-  #           --users 100 \
-  #           --spawn-rate 10 \
-  #           --run-time 15s \
-  #           --host=http://localhost:5000
+    - name: Wait for the application to be ready
+      run: |
+        for i in {1..30}; do
+          curl -s http://localhost:5000 && break
+          sleep 1
+        done
 
-  #     - name: Stop the application
-  #       if: always()
-  #       run: |
-  #         kill $(cat app_pid.txt) || true
-    
-  #     - name: Run Quality Tests
-  #       run: |
-  #         python tests/test_quality.py
+    - name: Run Performance Tests
+      run: |
+        locust -f tests/test_performance.py \
+          --headless \
+          --users 100 \
+          --spawn-rate 10 \
+          --run-time 15s \
+          --host=http://localhost:5000
 
-  #     - name: Install Trivy for Security Tests
-  #       run: |
-  #         sudo apt-get install -y wget && \
-  #         wget https://github.com/aquasecurity/trivy/releases/download/v0.46.0/trivy_0.46.0_Linux-64bit.deb && \
-  #         sudo dpkg -i trivy_0.46.0_Linux-64bit.deb
+    - name: Stop the application
+      if: always()
+      run: |
+        kill $(cat app_pid.txt) || true
 
-  #     - name: Run Security Tests
-  #       run: |
-  #         ./tests/test_security.sh
-  #       continue-on-error: true
+    - name: Run Quality Tests
+      run: |
+        python tests/test_quality.py
+
+    - name: Install Trivy for Security Tests
+      run: |
+        sudo apt-get install -y wget && \
+        wget https://github.com/aquasecurity/trivy/releases/download/v0.46.0/trivy_0.46.0_Linux-64bit.deb && \
+        sudo dpkg -i trivy_0.46.0_Linux-64bit.deb
+
+    - name: Run Security Tests
+      run: |
+        ./tests/test_security.sh
+      continue-on-error: true
 
   # Phase 5: Infrastructure Setup (Terraform)
   infrastructure:
@@ -158,13 +158,23 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
           terraform_wrapper: false
       
-      - name: Apply Backend Resources
+      - name: Create S3 Bucket for Terraform State and DynamoDB Table for Locking
+        run: |
+          aws s3 mb s3://mi-bucket-terraform-state --region ${{ env.AWS_REGION }}
+          aws dynamodb create-table \
+            --table-name tabla-de-lock-terraform \
+            --attribute-definitions AttributeName=LockID,AttributeType=S \
+            --key-schema AttributeName=LockID,KeyType=HASH \
+            --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Apply Backend Resources (S3 Bucket and DynamoDB Table)
         working-directory: ./iac
         run: |
           terraform init -backend=false
           terraform apply -auto-approve -target=aws_s3_bucket.terraform_state -target=aws_dynamodb_table.terraform_locks
 
-      - name: Terraform Init
+      - name: Terraform Init (Configure Backend)
         working-directory: ./iac
         run: terraform init -reconfigure
 
@@ -229,33 +239,58 @@ jobs:
           
           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60"
           
-          # Crear el directorio y establecer permisos
-          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP "sudo mkdir -p /var/www/web-app && sudo chown ubuntu:ubuntu /var/www/web-app"
-          
-          # Copiar los archivos
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:/var/www/web-app/static
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:/var/www/web-app/templates
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:/var/www/web-app/app.py
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem secrets.yaml ubuntu@$INSTANCE_IP:/var/www/web-app/secrets.yaml
-          
+          # Conectar al EC2 e instalar dependencias antes de crear el entorno
           ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
-            sudo systemctl restart web-app
+            # Actualizar el sistema e instalar dependencias
+            sudo apt update
+            sudo apt install -y python3-pip python3-venv
+            
+            # Crear el directorio para la aplicación
+            mkdir -p ~/car_crud_app && cd ~/car_crud_app
+            
+            # Crear entorno virtual e instalar dependencias
+            python3 -m venv venv
+            source venv/bin/activate
           EOF
 
+          # Copiar los archivos específicos desde el repositorio a la instancia EC2
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
+
+          # Acceder nuevamente al EC2 para instalar dependencias de Python y ejecutar la aplicación
+          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
+            # Activar entorno virtual e instalar dependencias desde requirements2.txt
+            cd ~/car_crud_app
+            source venv/bin/activate
+            pip install -r requirements2.txt
+
+            # Iniciar la aplicación Flask
+            flask run --host=0.0.0.0 &
+          EOF
+
+          echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
 
 # Phase 7: Release
-# release:
-#   needs: test
-#   if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-#   runs-on: ubuntu-latest
+  release:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
 
-#   steps:
-#     - uses: actions/checkout@v3
-#       with:
-#         fetch-depth: 0
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Necesario para tener acceso al historial completo de commits
 
-#     - name: Create Git Tag for Release
-#       run: |
-#         TAG="release-$(date +'%Y%m%d-%H%M%S')"
-#         git tag $TAG
-#         git push origin $TAG
+      - name: Set up Git configuration
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+        
+      - name: Create Git Tag for Release
+        run: |
+          TAG="release-$(date +'%Y%m%d-%H%M%S')"
+          git tag $TAG
+          git push origin $TAG

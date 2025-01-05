@@ -20,13 +20,20 @@ def create_app(db_uri=None):
     # Configuración de la base de datos
     if not db_uri:
         # Si no se proporciona URI, intentar cargar desde secrets.yaml
-        try:
-            with open('secrets.yaml', 'r', encoding='utf-8') as file:
-                secrets = yaml.safe_load(file)
-                db_uri = secrets['mongodb']['uri']
-        except (FileNotFoundError, KeyError):
-            # Usar conexión local por defecto para pruebas
-            db_uri = 'mongodb://localhost:27017/'
+            try:
+                with open('secrets.yaml', 'r', encoding='utf-8') as file:
+                    print("Archivo abierto correctamente")
+                    secrets = yaml.safe_load(file)
+                    db_uri = secrets['mongodb']['uri']
+            except FileNotFoundError:
+                print("No se encontró el archivo secrets.yaml")
+                db_uri = 'mongodb://localhost:27017/'
+            except KeyError as e:
+                print("Error al acceder a la clave:", e)
+                db_uri = 'mongodb://localhost:27017/'
+            except Exception as e:
+                print("Error inesperado:", e)
+                db_uri = 'mongodb://localhost:27017/'
 
     # Conectar con MongoDB
     client = MongoClient(db_uri)
@@ -132,4 +139,4 @@ def create_app(db_uri=None):
 app, cars_collection = create_app()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)

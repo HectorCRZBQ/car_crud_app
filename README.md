@@ -8,10 +8,10 @@ Las fases a seguir van a ser:
 2. Code (Python)
 3. Build (GithubActions)
 4. Test (Pytest (Test generales) + Locust (Test de rendimiento) +  Trivy (Test de seguridad) )
-5. Release (GithubActions / Git tagging)
-6. Deploy (AWS / Google Cloud)
-7. Operate (Terraform)
-8. Monitor (Grafana o Prometheus (Back) y Google Analytics (Front))
+5. Operate (Terraform)
+6. Deploy (AWS / Google Cloud) + KMS
+7. Google Analytics (Front)
+8. Release (GithubActions / Git tagging)
 
 ## 1. Plan 
 
@@ -180,21 +180,172 @@ Dentro del código en la parte de **test** de GithubActions vamos a realizar los
 - Ejecutar el test seguridad
 
 
-## 5. Release
+## 5. Operate / Infraestructure
 
-Definimos como se va a hacer el proceso de versionado del proyecto, en este caso creamos un tag para las versiones con la siguiente estructura:
- - Se añade la fecha en formato **año_mes_dia**
- - Se añade la fecha en formato **hora_minuto_segundo**
+Se defiene la funcionalidad de Terraform para configurar y definir la estructura del AWS.
+
+Añadimos a la estructura de proyecto los siguientes elementos:
+ - Creamos el directorio **iac** donde guardamos los distintos códigos que Terraform va a hacer uso:
+    - main.tf -> se define el bucket que se va a usar para almacenar el contenido y sus especificaciones.
+    - variables.tf -> se declaran las variables reutilizables, en este caso la región
+    - output.tf -> se define el contenido a mostrar tras que se realice el despliegue facilitando el acceso a los datos generados.
+    - backend.tf -> backend de almacenamiento del tfstate en S3 y Dyanmo DB
+
+Claro, aquí tienes el texto con los elementos en negrita para un archivo `.md`:
+
+La infraestructura que monta el archivo main.tf es:
+
+- **VPC principal** (`aws_vpc.main`): Red privada en la que se encuentran los recursos.
+- **Subred pública** (`aws_subnet.main`): Subred pública asociada a la VPC, permite el acceso desde Internet.
+- **Puerta de enlace de Internet** (`aws_internet_gateway.main`): Habilita el acceso a Internet desde la VPC.
+- **Tabla de rutas** (`aws_route_table.main`): Define las rutas dentro de la VPC.
+- **Grupo de seguridad** (`aws_security_group.allow_http`): Configura reglas de firewall para permitir tráfico HTTP, SSH y en el puerto 5000.
+- **Clave SSH** (`aws_key_pair.web_key`): Clave privada para acceder a la instancia EC2.
+- **Instancia EC2** (`aws_instance.web`): Instancia en EC2 que ejecuta la aplicación web, accesible a través de SSH y HTTP.
+
+La infraestructura que monta el archivo backend.tf es:
+
+- **S3 Bucket** (`mi-bucket-terraform-state`): Crea un bucket de S3.
+- **DynamoDB Table** (`tabla-de-lock-terraform`): Asegura que solo un proceso de Terraform realice cambios a la vez.
+- **Backend de S3**: El archivo de estado de Terraform se almacena en un bucket de S3. La tabla de DynamoDB se utiliza para el bloqueo de estado.
+
+Este formato en Markdown mostrará los nombres de las infraestructuras en **negrita**.
 
 
-Dentro del código en la parte de **release** de GithubActions vamos a realizar los siguientes acciones:
-- Versionado del contenido con fecha y hora
+Todos estos pasos se ejecutan dentro de la carpeta de iac
+
+   ```
+   cd iac
+   ```
+
+Los pasos que se deben ejecutar con Terraform son los siguientes:
+
+ - Infraestructura del backend de S3 y DynamoDB
+
+   Creacion del bucket y de la tabla
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   aws s3 mb s3://mi-bucket-terraform-state --region eu-west-1
+
+   aws dynamodb create-table \
+   --table-name tabla-de-lock-terraform \
+   --attribute-definitions AttributeName=LockID,AttributeType=S \
+   --key-schema AttributeName=LockID,KeyType=HASH \
+   --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
+   --region eu-west-1
+   ```
+
+   ![Imagen](/images/image-8.png)
+
+
+ - Inicializacion de Terraform
+
+   Descarga contenido necesario y se prepara el entorno.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform init -backend=false
+   ```
+
+   ![Imagen](/images/image-9.png)
+
+
+ - Actualización de los valores
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform init -reconfigure
+   ```
+
+   ![Imagen](/images/image-10.png)
+
+
+ - Planificación de Terraform
+
+   Define el pamn de ejecución con los cambios necesarios a realizar para satisfacer la estructura propuesta.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform plan -out=tfplan
+   ```
+
+   ![Imagen](/images/image-11.png)
+   ![Imagen](/images/image-12.png)
+
+
+ - Aplicación de Terraform
+
+   Se crean, actualizan o eliminan los recursos necesarios de la nube.
+
+   Para realizar este paso se ejcuta el siguiente comando:
+   ```
+   terraform apply -auto-approve tfplan
+   ```
+   ![Imagen](/images/image-13.png)
+
+ - Extraemos el valor de la IP publica de la instancia de EC2
+   
+   ```
+   terraform output instance_public_ip
+   ```
+
+   ![Imagen](/images/image-14.png)
+
+ - Copiamos el valor de la clave PEM generada por terraform y la alamcenamos dentro de ssh
+
+   ```
+   terraform output -raw private_key > ~/.ssh/web_key.pem
+   ```
+
+   ![Imagen](/images/image-15.png)
+   ![Imagen](/images/image-16.png)
+
+ - Verificamos los permisos necesarios de la clave privada
+
+   ```
+   chmod 400 ~/.ssh/web_key.pem
+
+   ls -la # Lo revisamos en el directorio .ssh que contiene la clave web_key.pem
+   ```
+   
+   ![Imagen](/images/image-17.png)
+
+   ![Imagen](/images/image-18.png)
+
+Dentro del código en la parte de **infraestructure** de GithubActions vamos a realizar los siguientes acciones:
+
+ - Inicializacion
+ - Planificación
+ - Aplicacion
+ - Obtencion de salidas
 
 ## 6. Deploy
 
-Para el deploy vamos a usar Amazon Web Service, y para almacenar el contenido generado en este código vamos a usar un bucket S3.
+Para el deploy vamos a usar Amazon Web Service.
 
-El usuario que vamos a utilizar se uso para una práctica similar de despliegue en AWS. Como elemento destacable tiene asignada una politica personaliza :
+El usuario va a tener qye tener las siguientes politicas:
+
+ - **AmazonEC2FullAccess**
+ - **AmazonS3FullAccess**
+ - **AmazonVPCFullAccess**
+ - **AWSKeyManagementServicePowerUser**
+ - **GitHubActionsKMSDecryptPolicy**:
+
+   ```
+   {
+      "Version": "2012-10-17",
+      "Statement": [
+         {
+            "Effect": "Allow",
+            "Action": "kms:Decrypt",
+            "Resource": "arn:aws:kms:${Region}:${AccountId}:key/${KMSKeyId}"
+         }
+      ]
+   }
+   ```
+
+ - **TerraformDynamoDBLockPolicy**: 
 
    ```
    {
@@ -203,43 +354,27 @@ El usuario que vamos a utilizar se uso para una práctica similar de despliegue 
          {
             "Effect": "Allow",
             "Action": [
-               "s3:CreateBucket",
-               "s3:DeleteBucket",
-               "s3:ListBucket",
-               "s3:Get*",
-               "s3:*Object",
-               "s3:PutBucketPolicy",
-               "s3:PutBucketPublicAccessBlock",
-               "s3:PutBucketVersioning",
-               "s3:PutBucketWebsite",
-               "s3:GetBucketCORS",
-               "s3:PutBucketCORS"
-            ],
-            "Resource": [
-               "arn:aws:s3:::github-actions-pipeline-web-*",
-               "arn:aws:s3:::github-actions-pipeline-web-*/*",
-               "arn:aws:s3:::github-actions-pipeline-artifacts-*",
-               "arn:aws:s3:::github-actions-pipeline-artifacts-*/*",
-               "arn:aws:s3:::terraform-state-*",
-               "arn:aws:s3:::terraform-state-*/*"
-            ]
-         },
-         {
-            "Effect": "Allow",
-            "Action": [
                "dynamodb:CreateTable",
                "dynamodb:DeleteTable",
                "dynamodb:PutItem",
                "dynamodb:GetItem",
-               "dynamodb:DeleteItem",
-               "dynamodb:UpdateItem"
+               "dynamodb:UpdateItem",
+               "dynamodb:DeleteItem"
             ],
-            "Resource": "arn:aws:dynamodb:*:*:table/terraform-lock"
+            "Resource": "arn:aws:dynamodb:${Region}:${AccountId}:table/${DynamoDBTableName}"
          }
       ]
    }
    ```
 
+Los valores del usuario creados los incorporamos como Secretos dentro de Github para que los Gihub Actions:
+
+ - AWS_ACCESS_KEY_ID: Tu Access Key del usuario IAM creado.
+ - AWS_SECRET_ACCESS_KEY: Tu Secret Access Key del usuario IAM creado.
+ - AWS_REGION: La región de AWS donde desplegarás los recursos (por ejemplo, eu-west-1).
+
+Tambien tenemos que añadir el valor que tenemos en secrets.yaml como secreto para que siga estando funcional la conexión a la base de datos
+  - MONGODB_URI: mongodb+srv://<db_user>:<db_password>@<db_name>.gtphu.mongodb.net/?retryWrites=true&w=majority&appName=<db_name>
 
 Se va a hacer uso de la AWS CLI para definir los credenciales del usuario que hemos creado, y se usa el siguiente comando:
 
@@ -278,125 +413,113 @@ Dentro del código en la parte de **deploy** de GithubActions vamos a realizar l
  - Definir y configurar los credenciales de AWS que vamos a usar
  - Descargar los artefactos construidos
  - Despliegue en el EC2
- - Copia de los artefactos dentro del EC2
+ - Copia de los archivos dentro de EC2
 
 
  Una vez que se haya creado todo la infraestructura necesaria, se puede realizar el despliegue:
 
+Accedemos al directorio de .ssh:
+   ```
+   cd .ssh
+   ```
+
   - Accedemos a la instancia EC2
 
    ```
-   ssh -i ~/.ssh/web_key.pem ubuntu@34.241.109.178
+   ssh -i ~/.ssh/web_key.pem ubuntu@<IP_PUBLICA>
    ```
 
+   ![Imagen](/images/image-19.png)
 
-## 7. Operate / Infraestructure
+   
+  - Instalamos las dependencias necesarias
+   ```
+   sudo apt update
+   sudo apt install -y python3-pip python3-venv
+   ```
 
-Se defiene la funcionalidad de Terraform para configurar y definir la estructura del AWS.
+   ![Imagen](/images/image-20.png)
+   ![Imagen](/images/image-21.png)
 
-Añadimos a la estructura de proyecto los siguientes elementos:
- - Creamos el directorio **iac** donde guardamos los distintos códigos que Terraform va a hacer uso:
-    - main.tf -> se define el bucket que se va a usar para almacenar el contenido y sus especificaciones.
-    - variables.tf -> se declaran las variables reutilizables, en este caso la región
-    - output.tf -> se define el contenido a mostrar tras que se realice el despliegue facilitando el acceso a los datos generados.
 
-Todos estos pasos se ejecutan dentro de la carpeta de iac
+  - Creamos el entorno de la aplicacion
+   ```
+   mkdir ~/car_crud_app && cd ~/car_crud_app
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+   ![Imagen](/images/image-22.png)
+   ![Imagen](/images/image-23.png)
+   
+Accedemos al directorio de iac:
 
    ```
    cd iac
    ```
 
-Los pasos que se deben ejecutar con Terraform son los siguientes:
- - Inicializacion de Terraform
+  - Copiamos los archivos a dentro de la instancia de EC2
 
-   Descarga contenido necesario y se prepara el entorno.
-
-   Para realizar este paso se ejcuta el siguiente comando:
-   ```
-   terraform init
-   ```
-
-   ![Imagen](/images/image-8.png)
-
-
- - Planificación de Terraform
-
-   Define el pamn de ejecución con los cambios necesarios a realizar para satisfacer la estructura propuesta.
-
-   Para realizar este paso se ejcuta el siguiente comando:
-   ```
-   terraform plan -out=tfplan
-   ```
-
-   ![Imagen](/images/image-9.png)
-   ![Imagen](/images/image-10.png)
-
-
- - Aplicación de Terraform
-
-   Se crean, actualizan o eliminan los recursos necesarios de la nube.
-
-   Para realizar este paso se ejcuta el siguiente comando:
-   ```
-   terraform apply -auto-approve tfplan
-   ```
-   ![Imagen](/images/image-11.png)
-
- - Extraemos el valor de la IP publica de la instancia de EC2
-   
-   ```
-   terraform output instance_public_ip
-   ```
-
-   ![Imagen](/images/image-12.png)
-
- - Copiamos el valor de la clave PEM generada por terraform y la alamcenamos dentro de ssh
+  Se copian los archivos necesarios al interior del EC2
 
    ```
-   terraform output -raw private_key > ~/.ssh/web_key.pem
+   scp -i ~/.ssh/web_key.pem -r ~/Escritorio/car_crud_app/static ~/Escritorio/car_crud_app/templates ~/Escritorio/car_crud_app/app.py ~/Escritorio/car_crud_app/requirements2.txt ~/Escritorio/car_crud_app/secrets.yaml ubuntu@<IP_PUBLICA>:~/car_crud_app/
+
+
    ```
 
-   ![Imagen](/images/image-13.png)
-   ![Imagen](/images/image-14.png)
+   ![Imagen](/images/image-24.png)
+   ![Imagen](/images/image-25.png)
 
- - Verificamos los permisos necesarios de la clave privada
+Accedemos al directorio de .ssh:
+
+  - Instalar las dependencias de tu aplicación
 
    ```
-   chmod 400 ~/.ssh/web_key.pem
-
-   ls -la # Lo revisamos en el directorio .ssh que contiene la clave web_key.pem
+   pip install -r requirements2.txt
    ```
-   
-   ![Imagen](/images/image-15.png)
 
-   ![Imagen](/images/image-16.png)
+   En este caso como usa la verision 3.8.10 se necesista el siguiente requirements2.txt:
 
+   ```
+   Flask==2.1.0
+   Flask-Cors==3.0.10
+   Flask-Login==0.5.0
+   pymongo[srv]==3.12.1
+   pyyaml==5.4.1
+   Werkzeug==2.0.2
+   ```
 
-
-Dentro de AWS podemos observar como tras todos los pasos se han creado los 
-
-Los valores del usuario creados los incorporamos como Secretos:
-
- - AWS_ACCESS_KEY_ID: Tu Access Key del usuario IAM creado.
- - AWS_SECRET_ACCESS_KEY: Tu Secret Access Key del usuario IAM creado.
- - AWS_REGION: La región de AWS donde desplegarás los recursos (por ejemplo, eu-west-1).
-
-Tambien tenemos que añadir el valor que tenemos en secrets.yaml como secreto para que siga estando funcional la conexión a la base de datos
-  - MONGODB_URI: mongodb+srv://<db_user>:<db_password>@<db_name>.gtphu.mongodb.net/?retryWrites=true&w=majority&appName=<db_name>
+   ![Imagen](/images/image-26.png)
 
 
-Dentro del código en la parte de **infraestructure** de GithubActions vamos a realizar los siguientes acciones:
+  - Dependencias necesaria para MongoDb Atlas
 
- - Inicializacion
- - Planificación
- - Aplicacion
- - Obtencion de salidas
+  sudo apt-get update
+sudo apt-get install ca-certificates
 
 
-## 8. Monitor
+  - Ejecuta la aplicación Flask
 
-Dentro del código en la parte de **monitor** de GithubActions vamos a realizar los siguientes acciones:
+   ```
+   flask run --host=0.0.0.0
+   ```
 
+   ![Imagen](/images/image-27.png)
+
+
+Direcciones que acepta MongoDB Atlas:
+
+![Imagen](/images/image-29.png)
+
+
+Acceso desde el navegador a visualizar la página:
+
+   ```
+   http://<IP_PUBLICA>:5000
+   ```
+
+   ![Imagen](/images/image-28.png)
 
 ## Funcionamiento del pipeline:
 
@@ -417,20 +540,35 @@ Y por ultimo lo pusheamos a la rama *main*
 ```
    git push origin main
 ```
-![Imagen](/images/image-20.png)
+![Imagen](/images/image-39.png)
 
 Tenemos desplegado la instancia EC2 en AWS:
 
-![Imagen](/images/image-20.png)
+![Imagen](/images/image-40.png)
+
+Tenemos desplegado el bucket S3 en AWS:
+
+![Imagen](/images/image-41.png)
+
+Y se almacena dentro el terraform.tfstate
+
+![Imagen](/images/image-42.png)
+
+Tenemos la tabla de DynamoDB en AWS:
+
+![Imagen](/images/image-43.png)
 
 Tenemos el VPC en AWS:
 
-![Imagen](/images/image-20.png)
+![Imagen](/images/image-44.png)
+
+Pares de claves en AWS:
+
+![Imagen](/images/image-45.png)
 
 Tenemos el KMS en AWS:
 
-![Imagen](/images/image-20.png)
-
+![Imagen](/images/image-46.png)
 
 ## Limpieza de la ejecucción
 
@@ -443,9 +581,31 @@ Para ello se ejecutan los siguientes comandos
    terraform destroy
    ```
 
+![Imagen](/images/image-47.png)
+
+![Imagen](/images/image-48.png)
+
 Y sería necesario eliminar de manera manual los siguientes elementos:
  - El bucket de estado de Terraform
  - La tabla DynamoDB de bloqueo
+
+
+## 7. Monitor
+
+Implementamos la monitarización usando Google Analytics del front-end de la aplicación.
+
+
+
+## 8. Release
+
+Definimos como se va a hacer el proceso de versionado del proyecto, en este caso creamos un tag para las versiones con la siguiente estructura:
+ - Se añade la fecha en formato **año_mes_dia**
+ - Se añade la fecha en formato **hora_minuto_segundo**
+
+
+Dentro del código en la parte de **release** de GithubActions vamos a realizar los siguientes acciones:
+- Versionado del contenido con fecha y hora
+
 
 ## Estructura final del Proyecto
 
@@ -470,24 +630,11 @@ Y sería necesario eliminar de manera manual los siguientes elementos:
    ├── iac
    │   ├── main.tf
    │   ├── outputs.tf
+   │   ├── backend.tf
    │   ├── .terraform
    │   ├── .terraform.lock.hcl
    │   └── variables.tf
    ├── images
-   │   ├── image-10.png
-   │   ├── image-11.png
-   │   ├── image-12.png
-   │   ├── image-13.png
-   │   ├── image-14.png
-   │   ├── image-1.png
-   │   ├── image-2.png
-   │   ├── image-3.png
-   │   ├── image-4.png
-   │   ├── image-5.png
-   │   ├── image-6.png
-   │   ├── image-7.png
-   │   ├── image-8.png
-   │   └── image-9.png
    ├── init_db.py
    ├── prompts.md
    ├── __pycache__
@@ -500,6 +647,7 @@ Y sería necesario eliminar de manera manual los siguientes elementos:
    │   └── v
    ├── README.md
    ├── requirements.txt
+   ├── requirements2.txt
    ├── scripts
    │   └── setup.sh
    ├── secrets.yaml
