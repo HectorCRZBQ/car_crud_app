@@ -276,6 +276,7 @@ jobs:
 
           echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
 
+
 # Phase 7: Release
 # release:
 #   needs: test
