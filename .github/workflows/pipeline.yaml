@@ -217,85 +217,85 @@ jobs:
             --region ${{ secrets.AWS_REGION }} \
             | base64 --decode > secrets.yaml
 
-# Phase 6: Deploy to Cloud
-deploy:
-  needs: infrastructure
-  runs-on: ubuntu-latest
+  # Phase 6: Deploy to Cloud
+  deploy:
+    needs: infrastructure
+    runs-on: ubuntu-latest
 
-  steps:
-    - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v3
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ env.AWS_REGION }}
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
-    - name: Download SSH private key
-      uses: actions/download-artifact@v3
-      with:
-        name: ssh-private-key
+      - name: Download SSH private key
+        uses: actions/download-artifact@v3
+        with:
+          name: ssh-private-key
 
-    - name: Verify and Move SSH private key
-      run: |
-        echo "Verifying artifact contents..."
-        ls -l ./ssh-private-key
-        if [ ! -f ./ssh-private-key/web_key.pem ]; then
-          echo "Error: SSH key artifact not found!"
-          exit 1
-        fi
+      - name: Verify and Move SSH private key
+        run: |
+          echo "Verifying artifact contents..."
+          ls -l ./ssh-private-key
+          if [ ! -f ./ssh-private-key/web_key.pem ]; then
+            echo "Error: SSH key artifact not found!"
+            exit 1
+          fi
 
-        mkdir -p ~/.ssh
-        mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem
-        chmod 400 ~/.ssh/web_key.pem
-        echo "Moved SSH key to ~/.ssh and set permissions."
+          mkdir -p ~/.ssh
+          mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem
+          echo "Moved SSH key to ~/.ssh and set permissions."
 
-    - name: Deploy Application to EC2
-      env:
-        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
-      run: |
-        echo "Deploying to $INSTANCE_IP"
-        
-        export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
+      - name: Deploy Application to EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          echo "Deploying to $INSTANCE_IP"
+          
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
 
-        # Conectar al EC2 e instalar dependencias antes de crear el entorno
-        ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
-          sudo apt update
-          sudo apt install -y python3-pip python3-venv
-          mkdir -p ~/car_crud_app && cd ~/car_crud_app
-          python3 -m venv venv
-          source venv/bin/activate
-        EOF
+          # Conectar al EC2 e instalar dependencias antes de crear el entorno
+          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
+            sudo apt update
+            sudo apt install -y python3-pip python3-venv
+            mkdir -p ~/car_crud_app && cd ~/car_crud_app
+            python3 -m venv venv
+            source venv/bin/activate
+          EOF
 
-    - name: Package application files
-      run: |
-        tar -czf app_files.tar.gz static templates app.py secrets.yaml requirements2.txt
+      - name: Package application files
+        run: |
+          tar -czf app_files.tar.gz static templates app.py secrets.yaml requirements2.txt
 
-    - name: Upload application files to EC2
-      env:
-        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
-      run: |
-        scp -o StrictHostKeyChecking=no -i ~/.ssh/web_key.pem app_files.tar.gz ubuntu@$INSTANCE_IP:~/car_crud_app/
+      - name: Upload application files to EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/web_key.pem app_files.tar.gz ubuntu@$INSTANCE_IP:~/car_crud_app/
 
-    - name: Extract and setup application on EC2
-      env:
-        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
-      run: |
-        ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
-          cd ~/car_crud_app
-          tar -xzf app_files.tar.gz
-          rm app_files.tar.gz
-          source venv/bin/activate
-          pip install -r requirements2.txt
-          nohup flask run --host=0.0.0.0 &
-        EOF
+      - name: Extract and setup application on EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
+            cd ~/car_crud_app
+            tar -xzf app_files.tar.gz
+            rm app_files.tar.gz
+            source venv/bin/activate
+            pip install -r requirements2.txt
+            nohup flask run --host=0.0.0.0 &
+          EOF
 
-    - name: Deployment Complete
-      env:
-        INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
-      run: |
-        echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
+      - name: Deployment Complete
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
 
 
 # Phase 7: Release
