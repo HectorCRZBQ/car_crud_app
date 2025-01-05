@@ -231,8 +231,9 @@ jobs:
 
       - name: Move SSH private key and set permissions
         run: |
-          mv ./web_key.pem ~/.ssh/web_key.pem
-          chmod 400 ~/.ssh/web_key.pem
+          mkdir -p /home/runner/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
+          mv /home/runner/work/car_crud_app/car_crud_app/web_key.pem /home/runner/.ssh/web_key.pem
+          chmod 400 /home/runner/.ssh/web_key.pem 
 
       - name: Deploy Application to EC2
         env:
