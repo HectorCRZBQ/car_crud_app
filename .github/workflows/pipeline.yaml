@@ -229,11 +229,22 @@ jobs:
         with:
           name: ssh-private-key
 
+      - name: Verify the contents of the downloaded artifact
+        run: |
+          # Verificar qué archivos se han descargado y su ubicación
+          ls -l ./ssh-private-key
+
       - name: Move SSH private key and set permissions
         run: |
-          mkdir -p ~/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
-          mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem  # Verifica la ruta de descarga
-          chmod 400 ~/.ssh/web_key.pem  # Establecer permisos de sólo lectura
+          # Verificar que el archivo exista antes de moverlo
+          if [ -f ./ssh-private-key/web_key.pem ]; then
+            mkdir -p ~/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
+            mv ./ssh-private-key/web_key.pem ~/.ssh/web_key.pem  # Mover el archivo a ~/.ssh
+            chmod 400 ~/.ssh/web_key.pem  # Establecer permisos de sólo lectura
+          else
+            echo "El archivo web_key.pem no se encuentra en el artefacto descargado."
+            exit 1
+          fi
 
       - name: Deploy Application to EC2
         env:
