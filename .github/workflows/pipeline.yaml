@@ -181,18 +181,29 @@ jobs:
         working-directory: ./iac
         run: terraform apply -auto-approve tfplan
 
-      - name: Get Instance Public IP
-        working-directory: ./iac
+      - name: Get Instance Public IP and Save Private Key
         id: get-ip
+        working-directory: ./iac
         run: |
-          echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
-
-      - name: Save SSH private key from Terraform output
-        run: |
+          # Asegurarse de que los outputs están disponibles
+          terraform refresh
+          
+          # Obtener y guardar la IP
+          INSTANCE_IP=$(terraform output -raw instance_public_ip)
+          echo "instance_public_ip=${INSTANCE_IP}" >> $GITHUB_OUTPUT
+          
+          # Crear directorio .ssh y guardar la clave
           mkdir -p ~/.ssh
-          echo "$(terraform output -raw private_key)" > ~/.ssh/web_key.pem
-          chmod 400 ~/.ssh/web_key.pem  # Establece permisos 400 para la clave privada
-      
+          # Guardar la clave directamente desde terraform output
+          cd ./iac && terraform output -raw private_key > ~/.ssh/web_key.pem
+          chmod 600 ~/.ssh/web_key.pem
+          
+          # Verificar el contenido de la clave
+          if [ ! -s ~/.ssh/web_key.pem ]; then
+            echo "Error: La clave privada está vacía"
+            exit 1
+          fi
+
       - name: Upload SSH private key as artifact
         uses: actions/upload-artifact@v3
         with:
@@ -224,16 +235,29 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Setup SSH Directory
+        run: |
+          mkdir -p ~/.ssh
+          echo "StrictHostKeyChecking no" >> ~/.ssh/config
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/config
+
       - name: Download SSH private key
         uses: actions/download-artifact@v3
         with:
           name: ssh-private-key
+          path: ~/.ssh
 
-      - name: Move SSH private key and set permissions
+      - name: Set SSH key permissions
         run: |
-          mkdir -p ~/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
-          mv web_key.pem ~/.ssh/web_key.pem
-          chmod 400 ~/.ssh/web_key.pem 
+          chmod 600 ~/.ssh/web_key.pem
+          ls -la ~/.ssh/web_key.pem
+
+      - name: Test SSH Connection
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          ssh -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP "echo 'SSH connection test'"
 
       - name: Deploy Application to EC2
         env:
