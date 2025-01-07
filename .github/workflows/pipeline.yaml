@@ -231,9 +231,9 @@ jobs:
 
       - name: Move SSH private key and set permissions
         run: |
-          mkdir -p /home/runner/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
-          mv /home/runner/work/car_crud_app/car_crud_app/web_key.pem /home/runner/.ssh/web_key.pem
-          chmod 400 /home/runner/.ssh/web_key.pem 
+          mkdir -p ~/.ssh  # Asegurarse de que la carpeta ~/.ssh exista
+          mv web_key.pem ~/.ssh/web_key.pem
+          chmod 400 ~/.ssh/web_key.pem 
 
       - name: Deploy Application to EC2
         env:
@@ -241,10 +241,10 @@ jobs:
         run: |
           echo "Deploying to $INSTANCE_IP"
           
-           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ~/.ssh/web_key.pem"
           
           # Conectar al EC2 e instalar dependencias antes de crear el entorno
-          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
+          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
             # Actualizar el sistema e instalar dependencias
             sudo apt update
             sudo apt install -y python3-pip python3-venv
@@ -258,14 +258,14 @@ jobs:
           EOF
 
           # Copiar los archivos específicos desde el repositorio a la instancia EC2
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ~/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp $SSH_OPTS ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
           # Acceder nuevamente al EC2 para instalar dependencias de Python y ejecutar la aplicación
-          ssh $SSH_OPTS -i ~/.ssh/web_key.pem ubuntu@$INSTANCE_IP <<EOF
+          ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
             # Activar entorno virtual e instalar dependencias desde requirements2.txt
             cd ~/car_crud_app
             source venv/bin/activate
