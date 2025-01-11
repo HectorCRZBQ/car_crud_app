@@ -190,9 +190,13 @@ jobs:
 
       - name: Save SSH private key from Terraform output
         run: |
-          mkdir -p ~/.ssh
+          mkdir -p ~/.ssh          
           echo "$(terraform output -raw private_key)" > ./web_key.pem
           chmod 400 ./web_key.pem  # Establece permisos 400 para la clave privada
+          echo "# veamos qué pasa realmente aquí"
+          pwd
+          terraform output
+          cat ./web_key.pem
       
       - name: Upload SSH private key as artifact
         uses: actions/upload-artifact@v3
