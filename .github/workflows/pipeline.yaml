@@ -203,7 +203,7 @@ jobs:
       - name: Upload SSH private key as artifact
         uses: actions/upload-artifact@v3
         with:
-          name: ssh-private-key
+          name: web_key.pem
           path: ./iac/web_key.pem
 
       - name: Decrypt secrets.yaml using KMS
@@ -234,7 +234,14 @@ jobs:
       - name: Download SSH private key
         uses: actions/download-artifact@v3
         with:
-          name: ssh-private-key
+          name: web_key.pem
+      
+      - name: Check SSH private key contents
+        run: |
+          echo "Verifying SSH private key content..."
+          cat /home/runner/work/car_crud_app/car_crud_app/web_key.pem || exit 1
+          echo "Listing permissions of the key..."
+          ls -l /home/runner/work/car_crud_app/car_crud_app/web_key.pem || exit 1
 
       - name: Move SSH private key and set permissions
         run: |
@@ -247,7 +254,7 @@ jobs:
           INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
         run: |
           echo "Connecting to EC2 at $INSTANCE_IP"
-          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i ./web_key.pem"
+          export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i /home/runner/.ssh/web_key.pem"
           ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
             sudo apt update
             sudo apt install -y python3-pip python3-venv
