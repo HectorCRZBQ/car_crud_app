@@ -189,10 +189,16 @@ jobs:
           echo "::set-output name=instance_public_ip::$(terraform output -raw instance_public_ip)"
 
       - name: Save SSH private key from Terraform output
+        working-directory: ./iac
         run: |
           mkdir -p ~/.ssh
           echo "$(terraform output -raw private_key)" > ./web_key.pem
           chmod 400 ./web_key.pem  # Establece permisos 400 para la clave privada
+
+          echo "# veamos qué pasa realmente aquí"
+          pwd
+          terraform output
+          cat ./web_key.pem
       
       - name: Upload SSH private key as artifact
         uses: actions/upload-artifact@v3
@@ -207,7 +213,7 @@ jobs:
             --output text \
             --query Plaintext \
             --key-id ${{ secrets.KMS_KEY_ID }} \
-            --region ${{ secrets.AWS_REGION }} \
+            --region ${{ env.AWS_REGION }} \
             | base64 --decode > secrets.yaml
 
   # Phase 6: Deploy to Cloud
