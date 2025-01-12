@@ -215,8 +215,7 @@ jobs:
             --output text \
             --query Plaintext \
             --key-id ${{ secrets.KMS_KEY_ID }} \
-            --region $AWS_REGION \
-            | base64 --decode > secrets.yaml
+            --region $AWS_REGION | base64 --decode > secrets.yaml
 
   # Phase 6: Deploy to Cloud
   deploy:
@@ -255,12 +254,11 @@ jobs:
         env:
           INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
         run: |
-          echo "Copying files to $INSTANCE_IP"
-          scp -i /home/runner/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp -i /home/runner/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp -i /home/runner/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp -i /home/runner/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp -i /home/runner/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
       - name: Prepare EC2 environment
         env:
