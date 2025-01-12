@@ -204,7 +204,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: ssh-private-key
-          path: ./web_key.pem
+          path: ./iac/web_key.pem
 
       - name: Decrypt secrets.yaml using KMS
         run: |
