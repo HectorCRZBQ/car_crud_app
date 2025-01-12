@@ -207,13 +207,15 @@ jobs:
           path: ./iac/web_key.pem
 
       - name: Decrypt secrets.yaml using KMS
+        env:
+          AWS_REGION: ${{ env.AWS_REGION }}
         run: |
           aws kms decrypt \
             --ciphertext-blob fileb://secrets.yaml.enc \
             --output text \
             --query Plaintext \
             --key-id ${{ secrets.KMS_KEY_ID }} \
-            --region ${{ env.AWS_REGION }} \
+            --region $AWS_REGION \
             | base64 --decode > secrets.yaml
 
   # Phase 6: Deploy to Cloud
@@ -248,6 +250,17 @@ jobs:
           mkdir -p /home/runner/.ssh
           mv /home/runner/work/car_crud_app/car_crud_app/web_key.pem /home/runner/.ssh/web_key.pem
           chmod 400 /home/runner/.ssh/web_key.pem
+      
+      - name: Copy application files to EC2
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
+        run: |
+          echo "Copying files to $INSTANCE_IP"
+          scp -i /home/runner/.ssh/web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -i /home/runner/.ssh/web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -i /home/runner/.ssh/web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -i /home/runner/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
+          scp -i /home/runner/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
       - name: Prepare EC2 environment
         env:
@@ -262,17 +275,6 @@ jobs:
             python3 -m venv venv
             source venv/bin/activate
           EOF
-
-      - name: Copy application files to EC2
-        env:
-          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
-        run: |
-          echo "Copying files to $INSTANCE_IP"
-          scp $SSH_OPTS -i ./web_key.pem -r ./static ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ./web_key.pem -r ./templates ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ./web_key.pem ./app.py ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ./web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
-          scp $SSH_OPTS -i ./web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
       - name: Install dependencies and start application
         env:
@@ -289,6 +291,7 @@ jobs:
       - name: Deployment Complete
         run: |
           echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
+
 
 # Phase 7: Release
 # release:
