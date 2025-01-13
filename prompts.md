@@ -15,9 +15,6 @@
 ## 4. Test
  - Estructura básica de los tests: https://chatgpt.com/share/674c8764-7874-8007-a141-5ca821f46365
 
- 
-## 5. Release
- - Creacion del tagging de versiones: 
 
 ## 6. Deploy
  - Despligue con AWS: https://chatgpt.com/share/6754b3d3-4130-8007-9251-99b462e77d2a
@@ -27,5 +24,8 @@
 
  - Correción del despliegue: https://chatgpt.com/share/676162c2-364c-8007-b203-af21a9ffa3ce
  
-## 8. Monitor
- - Mo nitorización de los resultados: 
+ Problemas con encriptacion en KMS: https://chatgpt.com/share/67856fa3-488c-8007-b72b-a03e6f9eb1c2
+
+ Copiar contenidos dentro de EC2: https://chatgpt.com/share/67856fc7-4a80-8007-b47b-924c8f6e9ba5
+
+

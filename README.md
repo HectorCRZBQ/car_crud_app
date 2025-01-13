@@ -10,8 +10,6 @@ Las fases a seguir van a ser:
 4. Test (Pytest (Test generales) + Locust (Test de rendimiento) +  Trivy (Test de seguridad) )
 5. Operate (Terraform)
 6. Deploy (AWS / Google Cloud) + KMS
-7. Google Analytics (Front)
-8. Release (GithubActions / Git tagging)
 
 ## 1. Plan 
 
@@ -395,17 +393,27 @@ Para encriptar el valor de secrets.yaml hacemos uso de KMS
 
 Se encripta el valor de secrets.yaml en terminal con el siguiente comando:
    ```
-   aws kms decrypt \
-   --ciphertext-blob fileb://secrets.yaml.enc \
+   aws kms encrypt \
+   --key-id <KMS_KEY_ID> \
+   --plaintext fileb://secrets.yaml \
+   --region <AWS_REGION> \
    --output text \
-   --query Plaintext \
-   --key-id <KMS_KEY_ID>\
-   --region <AWS_REGION> | base64 --decode > secrets.yaml
+   --query CiphertextBlob | base64 > secrets.yaml.enc
 
    ```
 Nos genera un archivo secrets.yaml.enc
 
 El valor de KMS es un secreto del repositorio de Github, bajo el nombre KMS_KEY_ID.
+
+Y para que se desencripte se hace uso del siguiente comando:
+   ```
+   aws kms decrypt \
+   --ciphertext-blob fileb://secrets.yaml.enc \
+   --output text \
+   --query Plaintext \
+   --region <AWS_REGION> | base64 --decode > secrets.yaml
+
+   ```
 
 Dentro del código en la parte de **deploy** de GithubActions vamos a realizar los siguientes acciones:
 
@@ -463,8 +471,6 @@ Accedemos al directorio de iac:
 
    ```
    scp -i ~/.ssh/web_key.pem -r ~/Escritorio/car_crud_app/static ~/Escritorio/car_crud_app/templates ~/Escritorio/car_crud_app/app.py ~/Escritorio/car_crud_app/requirements2.txt ~/Escritorio/car_crud_app/secrets.yaml ubuntu@<IP_PUBLICA>:~/car_crud_app/
-
-
    ```
 
    ![Imagen](/images/image-24.png)
@@ -587,23 +593,6 @@ Para ello se ejecutan los siguientes comandos
 Y sería necesario eliminar de manera manual los siguientes elementos:
  - El bucket de estado de Terraform
  - La tabla DynamoDB de bloqueo
-
-
-## 7. Monitor
-
-Implementamos la monitarización usando Google Analytics del front-end de la aplicación.
-
-
-
-## 8. Release
-
-Definimos como se va a hacer el proceso de versionado del proyecto, en este caso creamos un tag para las versiones con la siguiente estructura:
- - Se añade la fecha en formato **año_mes_dia**
- - Se añade la fecha en formato **hora_minuto_segundo**
-
-
-Dentro del código en la parte de **release** de GithubActions vamos a realizar los siguientes acciones:
-- Versionado del contenido con fecha y hora
 
 
 ## Estructura final del Proyecto
