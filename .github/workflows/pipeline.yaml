@@ -291,7 +291,8 @@ jobs:
             cd ~/car_crud_app
             source venv/bin/activate
             pip install -r requirements2.txt
-            flask run --host=0.0.0.0 &
+            nohup flask run --host=0.0.0.0 &> flask.log &
+            disown
           EOF
 
       - name: Deployment Complete
