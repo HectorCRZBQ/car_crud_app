@@ -214,8 +214,8 @@ jobs:
             --ciphertext-blob fileb://secrets.yaml.enc \
             --output text \
             --query Plaintext \
-            --key-id ${{ secrets.KMS_KEY_ID }} \
-            --region $AWS_REGION | base64 --decode > secrets.yaml
+            --region ${{ env.AWS_REGION }} \
+            | base64 --decode > secrets.yaml
 
   # Phase 6: Deploy to Cloud
   deploy:

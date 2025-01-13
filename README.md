@@ -400,8 +400,7 @@ Se encripta el valor de secrets.yaml en terminal con el siguiente comando:
    --output text \
    --query Plaintext \
    --key-id <KMS_KEY_ID>\
-   --region <AWS_REGION>
-   | base64 --decode > secrets.yaml
+   --region <AWS_REGION> | base64 --decode > secrets.yaml
 
    ```
 Nos genera un archivo secrets.yaml.enc
