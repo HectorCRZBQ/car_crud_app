@@ -206,7 +206,7 @@ jobs:
           name: web_key.pem
           path: ./iac/web_key.pem
 
-  # Phase 6: Deploy to Cloud
+# Phase 6: Deploy to Cloud
   deploy:
     needs: infrastructure
     runs-on: ubuntu-latest
@@ -267,35 +267,88 @@ jobs:
           scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem ./secrets.yaml ubuntu@$INSTANCE_IP:~/car_crud_app/
           scp -o StrictHostKeyChecking=no -i /home/runner/.ssh/web_key.pem ./requirements2.txt ubuntu@$INSTANCE_IP:~/car_crud_app/
 
-      - name: Prepare EC2 environment
+      - name: Prepare EC2 environment and install dependencies
         env:
           INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
         run: |
           echo "Connecting to EC2 at $INSTANCE_IP"
           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i /home/runner/.ssh/web_key.pem"
           ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
+            # Actualizar sistema e instalar dependencias
             sudo apt update
             sudo apt install -y python3-pip python3-venv
-            mkdir -p ~/car_crud_app && cd ~/car_crud_app
+            
+            # Preparar entorno virtual
+            cd ~/car_crud_app
             python3 -m venv venv
             source venv/bin/activate
-          EOF
+            
+            # Instalar dependencias del proyecto
+            pip install -r requirements2.txt
+            pip install gunicorn
 
-      - name: Install dependencies and start application
+            # Crear directorio para logs
+            mkdir -p logs
+            
+            # Crear configuración de Gunicorn
+            cat > gunicorn_config.py <<EOL
+bind = "0.0.0.0:5000"
+workers = 3
+timeout = 120
+accesslog = "logs/access.log"
+errorlog = "logs/error.log"
+capture_output = True
+loglevel = "info"
+EOL
+
+            # Crear servicio systemd
+            sudo tee /etc/systemd/system/gunicorn_flask.service <<EOL
+[Unit]
+Description=Gunicorn instance to serve Flask application
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/car_crud_app
+Environment="PATH=/home/ubuntu/car_crud_app/venv/bin"
+ExecStart=/home/ubuntu/car_crud_app/venv/bin/gunicorn --config gunicorn_config.py app:app
+ExecReload=/bin/kill -s HUP \$MAINPID
+KillMode=mixed
+TimeoutStopSec=5
+PrivateTmp=true
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOL
+            
+            # Recargar systemd y arrancar servicio
+            sudo systemctl daemon-reload
+            sudo systemctl enable gunicorn_flask
+            sudo systemctl restart gunicorn_flask
+EOF
+
+      - name: Verify deployment
         env:
           INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
         run: |
-          echo "Installing dependencies and starting Flask app on $INSTANCE_IP"
+          echo "Verifying deployment on $INSTANCE_IP"
           export SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=60 -i /home/runner/.ssh/web_key.pem"
           ssh $SSH_OPTS ubuntu@$INSTANCE_IP <<EOF
-            cd ~/car_crud_app
-            source venv/bin/activate
-            pip install -r requirements2.txt
-            nohup flask run --host=0.0.0.0 &> flask.log &
-            disown
-          EOF
+            echo "Checking service status..."
+            sudo systemctl status gunicorn_flask
+            echo "Checking process..."
+            ps aux | grep gunicorn
+            echo "Checking port..."
+            netstat -tulpn | grep 5000
+            echo "Checking recent logs..."
+            tail -n 20 ~/car_crud_app/logs/error.log
+EOF
 
       - name: Deployment Complete
+        env:
+          INSTANCE_IP: ${{ needs.infrastructure.outputs.instance_public_ip }}
         run: |
           echo "Deployment complete. Application should be running at http://$INSTANCE_IP:5000"
 
