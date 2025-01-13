@@ -206,7 +206,7 @@ jobs:
           name: web_key.pem
           path: ./iac/web_key.pem
 
-# Phase 6: Deploy to Cloud
+  # Phase 6: Deploy to Cloud
   deploy:
     needs: infrastructure
     runs-on: ubuntu-latest
@@ -292,42 +292,42 @@ jobs:
             
             # Crear configuración de Gunicorn
             cat > gunicorn_config.py <<EOL
-bind = "0.0.0.0:5000"
-workers = 3
-timeout = 120
-accesslog = "logs/access.log"
-errorlog = "logs/error.log"
-capture_output = True
-loglevel = "info"
-EOL
+            bind = "0.0.0.0:5000"
+            workers = 3
+            timeout = 120
+            accesslog = "logs/access.log"
+            errorlog = "logs/error.log"
+            capture_output = True
+            loglevel = "info"
+            EOL
 
             # Crear servicio systemd
             sudo tee /etc/systemd/system/gunicorn_flask.service <<EOL
-[Unit]
-Description=Gunicorn instance to serve Flask application
-After=network.target
+            [Unit]
+            Description=Gunicorn instance to serve Flask application
+            After=network.target
 
-[Service]
-User=ubuntu
-Group=ubuntu
-WorkingDirectory=/home/ubuntu/car_crud_app
-Environment="PATH=/home/ubuntu/car_crud_app/venv/bin"
-ExecStart=/home/ubuntu/car_crud_app/venv/bin/gunicorn --config gunicorn_config.py app:app
-ExecReload=/bin/kill -s HUP \$MAINPID
-KillMode=mixed
-TimeoutStopSec=5
-PrivateTmp=true
-Restart=always
+            [Service]
+            User=ubuntu
+            Group=ubuntu
+            WorkingDirectory=/home/ubuntu/car_crud_app
+            Environment="PATH=/home/ubuntu/car_crud_app/venv/bin"
+            ExecStart=/home/ubuntu/car_crud_app/venv/bin/gunicorn --config gunicorn_config.py app:app
+            ExecReload=/bin/kill -s HUP \$MAINPID
+            KillMode=mixed
+            TimeoutStopSec=5
+            PrivateTmp=true
+            Restart=always
 
-[Install]
-WantedBy=multi-user.target
-EOL
+            [Install]
+            WantedBy=multi-user.target
+            EOL
             
             # Recargar systemd y arrancar servicio
             sudo systemctl daemon-reload
             sudo systemctl enable gunicorn_flask
             sudo systemctl restart gunicorn_flask
-EOF
+          EOF
 
       - name: Verify deployment
         env:
@@ -344,7 +344,7 @@ EOF
             netstat -tulpn | grep 5000
             echo "Checking recent logs..."
             tail -n 20 ~/car_crud_app/logs/error.log
-EOF
+          EOF
 
       - name: Deployment Complete
         env:
