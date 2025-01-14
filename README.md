@@ -189,8 +189,6 @@ Añadimos a la estructura de proyecto los siguientes elementos:
     - output.tf -> se define el contenido a mostrar tras que se realice el despliegue facilitando el acceso a los datos generados.
     - backend.tf -> backend de almacenamiento del tfstate en S3 y Dyanmo DB
 
-Claro, aquí tienes el texto con los elementos en negrita para un archivo `.md`:
-
 La infraestructura que monta el archivo main.tf es:
 
 - **VPC principal** (`aws_vpc.main`): Red privada en la que se encuentran los recursos.
@@ -526,7 +524,16 @@ Acceso desde el navegador a visualizar la página:
 
    ![Imagen](/images/image-28.png)
 
+
 ## Funcionamiento del pipeline:
+
+### Video ejecucción pipeline
+
+En este video, explico la ejecución del pipeline paso a paso y las tecnologías que uso.
+
+[![Ejecución del Pipeline](https://img.youtube.com/vi/F-NrZsKntZ4/0.jpg)](https://youtu.be/F-NrZsKntZ4)
+
+### Ejecución del Pipeline paso a paso
 
 El pipeline se activará automáticamente con cada push a la rama main.
 
@@ -574,6 +581,23 @@ Pares de claves en AWS:
 Tenemos el KMS en AWS:
 
 ![Imagen](/images/image-46.png)
+
+
+Una vez que se finelice de ejecutar el pipeline, dentro de la interfaz podemos realizar acciones como:
+
+### Añadir vehiculos
+
+[![Añadir Vehículos](https://img.youtube.com/vi/0nsQHS-mCyk/0.jpg)](https://youtu.be/0nsQHS-mCyk)
+
+
+### Modificar vehiculos
+
+ [![Editar Vehículos](https://img.youtube.com/vi/rDuOW0s1ZoM/0.jpg)](https://youtu.be/rDuOW0s1ZoM)
+
+
+### Eliminar vehiculos
+
+ [![Borrar Vehículos](https://img.youtube.com/vi/4E1obdL1wbw/0.jpg)](https://youtu.be/4E1obdL1wbw)
 
 ## Limpieza de la ejecucción
 
@@ -663,3 +687,7 @@ Y sería necesario eliminar de manera manual los siguientes elementos:
       ├── lib64 -> lib
       └── pyvenv.cfg
    ```
+
+--- 
+
+### Hector de la Cruz Baquero - [Linkdedin](https://www.linkedin.com/in/h%C3%A9ctor-de-la-cruz-baquero-ba193429b/) - [Webpage](https://hectorcrzbq.github.io/)
