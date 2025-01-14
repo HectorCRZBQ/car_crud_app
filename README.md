@@ -687,7 +687,6 @@ Y sería necesario eliminar de manera manual los siguientes elementos:
       ├── lib64 -> lib
       └── pyvenv.cfg
    ```
-
 --- 
 
 ### Hector de la Cruz Baquero - [Linkdedin](https://www.linkedin.com/in/h%C3%A9ctor-de-la-cruz-baquero-ba193429b/) - [Webpage](https://hectorcrzbq.github.io/)
